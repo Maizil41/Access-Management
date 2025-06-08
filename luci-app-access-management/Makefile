@@ -6,7 +6,7 @@ include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=LuCI For Access Management.
 LUCI_DEPENDS:=+luci
-LUCI_DESCRIPTION:=Bot Whatsapp for Radius Monitor.
+LUCI_DESCRIPTION:=Access Management For OpenWrt.
 LUCI_MAINTAINER:=Maizil41 <https://github.com/Maizil41>
 
 PKG_MAINTAINER:=TaufikNRA <https://github.com/TaufikNRA>
