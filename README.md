@@ -12,17 +12,12 @@
 
 ### Mutiara-Wrt ?
 - 👉 <a href="https://github.com/Mutiara-Wrt" target="_blank">Mutiara-Wrt</a>
-<hr/>
 
 Features
 ---
 - Block Hotspot & PPPoE Users from accessing sensitive ports of RadMonv2 Gateway router
 - uHTTPd web server settings
 - + added PPPoE status page with coffee hotspot theme
-
-Installation ?
----
-- contact the owner 👇
 
 Owner
 ---
