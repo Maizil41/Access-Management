@@ -34,5 +34,5 @@ Owner
 Qris for donation
 ---
   <p>
-  <img src="www/luci-static/resource/assets/img/qristaufik.png" alt="qris">
+  <img src="www/luci-static/resources/assets/img/qristaufik.png" alt="qris">
  </p>
