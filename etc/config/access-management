@@ -1,0 +1,5 @@
+
+config access_management 'main'
+	option enabled '0'
+	option ports '22,3000,7681,8080,8443,9090,19999'
+
