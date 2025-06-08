@@ -3,7 +3,7 @@
 </div>
 <hr/>
 <div align="center">
-  <img alt="License" src="https://img.shields.io/github/license/TaufikNRA/luci-app-radius-monitor?style=for-the-badge">
+  <img alt="License" src="https://img.shields.io/github/license/TaufikNRA/Access-Management?style=for-the-badge">
   <a target="_blank" href="https://github.com/TaufikNRA/Access-Management/releases"><img src="https://img.shields.io/github/release/TaufikNRA/Access-Management?style=for-the-badge"></a>
   <a target="_blank" href="https://github.com/TaufikNRA/Access-Management/releases"><img src="https://img.shields.io/github/downloads/TaufikNRA/Access-Management/total?style=for-the-badge"></a>
 </div>
