@@ -30,3 +30,9 @@ Owner
   <li>Github : <a href="https://github.com/TaufikNRA" target="_blank">TaufikNRA</a></li>
   <li>Telegram : <a href="https://t.me/Taufik_N_A" target="_blank">TAUFIK_N_A</a></li>
 </ul>
+
+Qris for donation
+---
+  <p>
+  <img src="www/luci-static/resource/assets/img/qristaufik.png" alt="qris">
+ </p>
