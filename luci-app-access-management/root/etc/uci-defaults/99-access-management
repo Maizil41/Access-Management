@@ -1,0 +1,33 @@
+#!/bin/sh
+
+mv /etc/config/uhttpd /etc/config/uhttpd.bak && mv /root/acmt-tmp/uhttpd /etc/config/uhttpd
+
+sleep 1
+mv /usr/lib/lua/luci/view/netmon.htm /usr/lib/lua/luci/view/netmon.htm.bak
+
+sleep 1
+mv /root/acmt-tmp/netmon.htm /usr/lib/lua/luci/view/netmon.htm
+
+sleep 1
+chmod +x /usr/bin/access-management
+
+sleep 1
+chmod +x /etc/init.d/access-management
+
+sleep 1
+chmod 600 /etc/config/uhttpd
+
+sleep 1
+mkdir -p /www/users/hotspotlogin
+
+sleep 1
+cp -a /www/hotspotlogin/. /www/users/hotspotlogin
+
+sleep 1
+sed -i '/^\s*doc_root\s*=/ s/^/;/' /etc/php.ini
+
+sleep 1
+rm -rf /root/acmt-tmp/
+
+sleep 1
+/etc/init.d/uhttpd restart
