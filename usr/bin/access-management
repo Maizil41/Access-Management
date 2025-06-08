@@ -1,0 +1,145 @@
+#!/bin/bash
+# Chilli & PPPoE Users blocker to RadMonv2 gateway router port by Access Management
+# Created by @Taufik ( https://t.me/taufik_n_a )
+# © 2025 AlphaWireless.net by @Taufik
+
+ACTION=$1
+ENABLED=$(uci get access-management.@access_management[0].enabled 2>/dev/null)
+PORTS=$(uci get access-management.main.ports 2>/dev/null)
+WHITELIST=$(uci get access-management.@access_management[0].whitelist 2>/dev/null)
+LOG_FILE="/var/log/access_management.log"
+
+if [ -z "$ACTION" ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - ⚠️ Perintah tidak ada."  >> "$LOG_FILE"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "⚠️ Perintah tidak ada."
+    exit 1
+elif [ "$ACTION" != "start" ] && [ "$ACTION" != "stop" ] && [ "$ACTION" != "restart" ] && [ "$ACTION" != "status" ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - ⚠️ Perintah tidak tersedia."  >> "$LOG_FILE"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "⚠️ Perintah tidak tersedia."
+    exit 1
+fi
+
+if [ "$ACTION" == "stop" ]; then
+    if nft list chain inet access-management input >/dev/null 2>&1; then
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+        echo "⭕ Menghapus chain input firewall nftables." >> "$LOG_FILE"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - ✔️ Perintah stop diterima."  >> "$LOG_FILE"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+        nft delete chain inet access-management input
+    fi
+    exit 1
+fi
+
+if [ "$ACTION" = "status" ]; then
+    if nft list chain inet access-management input >/dev/null 2>&1; then
+        echo "RUNNING"
+        exit 0
+    else
+        echo "NOT RUNNING"
+        exit 1
+    fi
+fi
+
+CONFIG_CONTENT=$(uci show access-management)
+
+if [ -z "$CONFIG_CONTENT" ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - ⚠️ File Config tidak ditemukan."  >> "$LOG_FILE"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "⚠️ File Config tidak ditemukan."
+    exit 1
+elif [ "$ENABLED" == "" ] && [ "$PORTS" == "" ] && [ "$WHITELIST" == "" ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - ⚠️ Config tidak sah."  >> "$LOG_FILE"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "⚠️ Config tidak sah."
+    exit 1
+fi
+
+if [ "$ENABLED" != "1" ]; then
+    ${0} stop
+    exit 1
+fi
+
+normalize_ip() {
+    ip="$1"
+    echo "${ip%.*}.0/24"
+}
+
+get_subnets() {
+    subnets=""
+    if [ -f /etc/config/chilli ]; then
+        uamlisten=$(awk '$1 == "option" && $2 == "uamlisten" {gsub("\x27", "", $3); print $3}' /etc/config/chilli)
+        if [ -n "$uamlisten" ]; then
+            subnet=$(normalize_ip "$uamlisten")
+            subnets="$subnets $subnet"
+        fi
+    fi
+    if [ -f /etc/config/pppoe ]; then
+        localip=$(awk '$1 == "option" && $2 == "localip" {gsub("\x27", "", $3); print $3}' /etc/config/pppoe)
+        if [ -n "$localip" ]; then
+            subnet=$(normalize_ip "$localip")
+            subnets="$subnets $subnet"
+        fi
+    fi
+    echo "$subnets"
+}
+
+SUBNETS=$(get_subnets)
+
+if [ -z "$SUBNETS" ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - ⚠️ IP Subnet tidak ditemukan."  >> "$LOG_FILE"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "⚠️ IP Subnet tidak ditemukan."
+    exit 1
+fi
+
+if [ -z "$PORTS" ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - ⚠️ Port kosong."  >> "$LOG_FILE"
+    echo "Silahkan isi terlebih dahulu."  >> "$LOG_FILE"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+    echo "⚠️ Port kosong."
+    exit 1
+fi
+
+if [ "$ENABLED" != "0" ]; then
+    if ! nft list table inet access-management >/dev/null 2>&1; then
+        nft add table inet access-management
+    fi
+    if nft list chain inet access-management input >/dev/null 2>&1; then
+        nft delete chain inet access-management input
+        nft add chain inet access-management input { type filter hook input priority 0 \; }
+    else
+        nft add chain inet access-management input { type filter hook input priority 0 \; }
+    fi
+    if [ -n "$WHITELIST" ]; then
+        for IP in $WHITELIST; do
+            if ! nft -a list table inet access-management | grep -q "$IP"; then
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+                echo "↪️ Port: $PORTS" >> "$LOG_FILE"
+                echo "↪️ Menambah Rule IP WhiteList: $IP" >> "$LOG_FILE"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') - ↔️ Memproses IP WhiteList." >> "$LOG_FILE"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+                nft add rule inet access-management input ip saddr $IP tcp dport { $PORTS } accept
+            fi
+        done
+    fi
+    if [ -n "$SUBNETS" ]; then
+        for SUBNET in $SUBNETS; do
+            if ! nft -a list table inet access-management | grep -q "$SUBNET"; then
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+                echo "↪️ Port: $PORTS" >> "$LOG_FILE"
+                echo "↪️ Menambah Rule IP Subnet: $SUBNET" >> "$LOG_FILE"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') - ↔️ Memproses IP Subnet." >> "$LOG_FILE"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"  >> "$LOG_FILE"
+                nft add rule inet access-management input ip saddr $SUBNET tcp dport { $PORTS } drop
+            fi
+        done
+    fi
+fi
