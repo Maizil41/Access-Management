@@ -1,0 +1,692 @@
+#!/bin/bash
+# Hotspot & PPPoE Users blocker to RadMonv2 gateway router port by Access Management
+# Created by @Taufik ( https://t.me/taufik_n_a )
+# © 2025 AlphaWireless.net by @Taufik
+
+ACTION=$1
+RES=$2
+ENABLED=$(uci get acmt.@acmt[0].enabled 2>/dev/null)
+HS_ENABLED=$(uci get acmt.@acmt[0].hs_enabled 2>/dev/null)
+PPP_ENABLED=$(uci get acmt.@acmt[0].ppp_enabled 2>/dev/null)
+PORTS=$(uci get acmt.@acmt[0].ports 2>/dev/null)
+IP_WL_ENABLED=$(uci get acmt.@acmt[0].ip_wl_enabled 2>/dev/null)
+MAC_WL_ENABLED=$(uci get acmt.@acmt[0].mac_wl_enabled 2>/dev/null)
+
+DB_USER="radmon"
+DB_PASS="radmon"
+DB_NAME="radmon"
+
+APP_LOOP=15
+PID_FILE="/tmp/run/acmt.pid"
+LOG_FILE="/tmp/log/acmt.log"
+CTRL_PID_FILE="/tmp/run/acmt_ctrl.pid"
+UCI_CONFIG=$(uci show acmt 2>/dev/null)
+UCI_HASH=$(echo "$UCI_CONFIG" | md5sum | awk '{print $1}')
+UCI_HASH_FILE="/tmp/run/acmt_uci.hash"
+
+IP_WHITELIST=""
+if [ "$IP_WL_ENABLED" = "1" ]; then
+    IP_WHITELIST=$(uci get acmt.@acmt[0].ip_whitelist 2>/dev/null)
+fi
+
+MAC_WHITELIST=""
+if [ "$MAC_WL_ENABLED" = "1" ]; then
+    MAC_WHITELIST=$(uci get acmt.@acmt[0].mac_whitelist 2>/dev/null)
+fi
+
+PREV_HASH=""
+[ -f "$UCI_HASH_FILE" ] && PREV_HASH=$(cat "$UCI_HASH_FILE")
+
+log_once() {
+    local message=$1
+    local action=$2
+    local escaped=$(printf '%s' "$message" | sed 's/[]\/$*.^[]/\\&/g')
+    
+    [ -f "$LOG_FILE" ] && sed -i "/$escaped/d" "$LOG_FILE"
+    
+    if [ -s "$LOG_FILE" ]; then
+        local last_line=$(sed -n '$p' "$LOG_FILE")
+        [ -n "$last_line" ] && [ "$last_line" != "" ] && [ "$action" != "not_a_new_entry_line" ] && echo "" >> "$LOG_FILE"
+    fi
+    
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_($message)" >> "$LOG_FILE"
+}
+
+reset_resources() {
+    local mes=$1
+    
+    for file in /tmp/run/acmt_*_*.hash; do
+        [ -f "$file" ] && rm -f "$file"
+    done
+    
+    [ -f "$PID_FILE" ] && rm -f "$PID_FILE"
+    [ -f "$CTRL_PID_FILE" ] && rm -f "$CTRL_PID_FILE"
+    [ -f "$UCI_HASH_FILE" ] && rm -f "$UCI_HASH_FILE"
+    [ "$mes" = "all" ] && > "$LOG_FILE"
+}
+
+if [ -f "$PID_FILE" ]; then
+    PID="$(cat "$PID_FILE")"
+else
+    PID=$(ps | grep '[a]cmt start' | awk '{print $1}')
+fi
+
+if [ -f "$CTRL_PID_FILE" ]; then
+    CTRL_PID="$(cat "$CTRL_PID_FILE")"
+else
+    CTRL_PID=$(ps | grep '[a]cmt-ctrl up' | awk '{print $1}')
+fi
+
+func_nft_del() {
+    if nft list chain inet acmt input >/dev/null 2>&1; then
+        nft delete chain inet acmt input
+    fi
+}
+
+func_kill_pid() {
+    if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+        kill "$PID"
+    fi
+    
+    if [ -n "$CTRL_PID" ] && kill -0 "$CTRL_PID" 2>/dev/null; then
+        kill "$CTRL_PID"
+    fi
+}
+
+if [ -z "$ACTION" ]; then
+    log_once "⚠️ The command does not exist"
+    echo "⚠️ The command does not exist."
+    echo "run with: ${0} (start|stop|restart|reload|status)"
+    exit 1
+elif [ "$ACTION" != "start" ] && [ "$ACTION" != "stop" ] && [ "$ACTION" != "restart" ] && [ "$ACTION" != "reload" ] && [ "$ACTION" != "update" ] && [ "$ACTION" != "status" ]; then
+    log_once "⚠️ Command not available"
+    echo "⚠️ Command not available."
+    echo "run with: ${0} (start|stop|restart|reload|status)"
+    exit 1
+fi
+
+if [ "$ACTION" = "stop" ]; then
+    if [[ "$RES" == "enabled_0" || -t 0 ]] && [[ "$ENABLED" != "0" ]]; then
+        uci set acmt.@acmt[0].enabled='0'
+        uci commit acmt
+    fi
+    
+    func_nft_del
+    func_kill_pid
+    reset_resources
+    exit 1
+fi
+
+if [ "$ACTION" = "status" ]; then
+    if [ -n "$PID" ] && kill -0 "$PID" && nft list chain inet acmt input >/dev/null 2>&1; then
+        echo "RUNNING (PID: $PID)"
+        exit 0
+    else
+        echo "NOT RUNNING"
+        exit 1
+    fi
+fi
+
+if [ "$ENABLED" = "0" ] || [ "$ACTION" = "reload" ]; then
+    if [ "$ENABLED" = "0" ]; then
+        ${0} stop
+        exit 1
+    else
+        if ! kill -0 "$PID" || ! nft list chain inet acmt input >/dev/null 2>&1; then
+            ${0} start
+        fi
+        exit 0
+    fi
+fi
+
+if [ -z "$UCI_CONFIG" ]; then
+    func_nft_del
+    func_kill_pid
+    reset_resources
+    log_once "⚠️ Config file not found. Please check again"
+    echo "⚠️ Config file not found."
+    exit 1
+elif [ "$ENABLED" == "" ] && [ "$PORTS" == "" ] && [ "$IP_WHITELIST" == "" ]; then
+    func_nft_del
+    func_kill_pid
+    reset_resources
+    log_once "⚠️ Invalid config. Please check again"
+    echo "⚠️ Invalid config."
+    exit 1
+fi
+
+get_latest_ip_by_mac() {
+    local mac="$1"
+    mac=$(echo "$mac" | tr '-' ':' | tr 'A-F' 'a-f')
+    mysql -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" -N -e "
+        SELECT framedipaddress
+        FROM radacct
+        WHERE acctstoptime IS NULL
+        AND REPLACE(callingstationid, '-', ':') = REPLACE('$mac', '-', ':')
+        ORDER BY radacctid DESC LIMIT 1;
+    "
+}
+
+get_old_ips_by_mac() {
+    local mac="$1"
+    mac=$(echo "$mac" | tr '-' ':' | tr 'A-F' 'a-f')
+
+    local exclude_ips=()
+
+    IFS=',' read -ra WHITELISTED_MACS <<< "$MAC_WHITELIST"
+    for m in "${WHITELISTED_MACS[@]}"; do
+        [ "$m" = "$mac" ] && continue
+        other_ip=$(get_latest_ip_by_mac "$m")
+        [ -n "$other_ip" ] && exclude_ips+=("$other_ip")
+    done
+
+    if [ -n "$IP_WHITELIST" ]; then
+        IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+        for ip in "${IP_LIST[@]}"; do
+            exclude_ips+=("$ip")
+        done
+    fi
+
+    mysql -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" -N -e "
+        SELECT DISTINCT framedipaddress
+        FROM radacct
+        WHERE REPLACE(callingstationid, '-', ':') = REPLACE('$mac', '-', ':')
+        AND framedipaddress IS NOT NULL;
+    " | while read -r ip; do
+        skip=false
+        for ex in "${exclude_ips[@]}"; do
+            [ "$ip" = "$ex" ] && skip=true && break
+        done
+        $skip || echo "$ip"
+    done
+}
+
+delete_nft_rule_for_ip() {
+    local pid_curr="$1"
+    local uci_hash="$2"
+    local ip="$3"
+    local mac="$4"
+    local nft_state nft_accept_match nft_hash nft_line handle
+    
+    if nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $ip"; then
+        while read -r LINE; do
+            handle=$(echo "$LINE" | grep -o 'handle [0-9]\+' | awk '{print $2}')
+            if [ -n "$handle" ]; then
+                nft_state=$(nft -a list chain inet acmt input 2>/dev/null)
+                nft_accept_match=$(echo "$nft_state" | grep "accept" | grep "$ip")
+                nft_hash=$(echo "$nft_accept_match" | md5sum | awk '{print $1}')
+                nft_line=$(echo "$nft_accept_match" | perl -e '
+                    my $s = <>;
+                    $s =~ s/^\s+//;
+                    my @saved = ();
+                    $s =~ s/{([^}]*)}/push(@saved, $1), "{__PLACEHOLDER__" . $#saved . "}"/ge;
+                    $s =~ s/ /_/g;
+                    $s =~ s/{__PLACEHOLDER__(\d+)}/"{" . $saved[$1] . "}"/ge;
+                    print $s;
+                ')
+                log_once "PID_CURR:$pid_curr)_(UCI_CURR:$uci_hash)_(NFT_CURR:$nft_hash)_(Processing_update_MAC_WhiteList:$mac)_(with IP:$ip)_(Delete_Rules:$nft_line" "not_a_new_entry_line"
+                
+                nft delete rule inet acmt input handle "$handle"
+            fi
+        done < <(nft -a list chain inet acmt input 2>/dev/null | grep -w "$ip")
+    fi
+}
+
+add_nft_rule_for_ip() {
+    local pid_curr="$1"
+    local uci_hash="$2"
+    local ip="$3"
+    local mac="$4"
+    local nft_state nft_accept_match nft_hash nft_line
+    
+    if ! nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $ip" && [[ "$ip" != $ABNORMAL_HS_IP && "$ip" != $ABNORMAL_PPP_IP ]]; then
+        nft insert rule inet acmt input ip saddr "$ip" tcp dport { $PORTS } accept
+        
+        nft_state=$(nft -a list chain inet acmt input 2>/dev/null)
+        nft_accept_match=$(echo "$nft_state" | grep "accept" | grep "$ip")
+        nft_hash=$(echo "$nft_accept_match" | md5sum | awk '{print $1}')
+        nft_line=$(echo "$nft_accept_match" | perl -e '
+            my $s = <>;
+            $s =~ s/^\s+//;
+            my @saved = ();
+            $s =~ s/{([^}]*)}/push(@saved, $1), "{__PLACEHOLDER__" . $#saved . "}"/ge;
+            $s =~ s/ /_/g;
+            $s =~ s/{__PLACEHOLDER__(\d+)}/"{" . $saved[$1] . "}"/ge;
+            print $s;
+        ')
+        log_once "PID_CURR:$pid_curr)_(UCI_CURR:$uci_hash)_(NFT_CURR:$nft_hash)_(Processing_update_MAC_WhiteList:$mac)_(with IP:$ip)_(Adding_Rules:$nft_line" "not_a_new_entry_line"
+    fi
+}
+
+abnormal_ip() {
+    local ip="$1"
+    echo "${ip%.*}.*"
+}
+
+get_hs_ip() {
+    local hs_ip=""
+    
+    if [ "$HS_ENABLED" = "0" ] && [ -f /etc/config/chilli ]; then
+        uamlisten=$(awk '$1 == "option" && $2 == "uamlisten" {gsub("\x27", "", $3); print $3}' /etc/config/chilli)
+        if [ -n "$uamlisten" ]; then
+            hs_ip=$(abnormal_ip "$uamlisten")
+        fi
+    fi
+    
+    echo "$hs_ip"
+}
+
+get_ppp_ip() {
+    local ppp_ip=""
+    
+    if [ "$PPP_ENABLED" = "0" ] && [ -f /etc/config/pppoe ]; then
+        localip=$(awk '$1 == "option" && $2 == "localip" {gsub("\x27", "", $3); print $3}' /etc/config/pppoe)
+        if [ -n "$localip" ]; then
+            ppp_ip=$(abnormal_ip "$localip")
+        fi
+    fi
+    
+    echo "$ppp_ip"
+}
+
+normalize_ip() {
+    local ip="$1"
+    echo "${ip%.*}.0/24"
+}
+
+get_subnets() {
+    local subnets=""
+    
+    if [ "$HS_ENABLED" = "1" ] && [ -f /etc/config/chilli ]; then
+        uamlisten=$(awk '$1 == "option" && $2 == "uamlisten" {gsub("\x27", "", $3); print $3}' /etc/config/chilli)
+        if [ -n "$uamlisten" ]; then
+            subnet=$(normalize_ip "$uamlisten")
+            subnets="$subnets $subnet"
+        fi
+    fi
+    
+    if [ "$PPP_ENABLED" = "1" ] && [ -f /etc/config/pppoe ]; then
+        localip=$(awk '$1 == "option" && $2 == "localip" {gsub("\x27", "", $3); print $3}' /etc/config/pppoe)
+        if [ -n "$localip" ]; then
+            subnet=$(normalize_ip "$localip")
+            subnets="$subnets $subnet"
+        fi
+    fi
+    
+    echo "$subnets"
+}
+
+ABNORMAL_HS_IP=$(get_hs_ip)
+ABNORMAL_PPP_IP=$(get_ppp_ip)
+SUBNETS=$(get_subnets)
+
+if [ -z "$SUBNETS" ]; then
+    func_nft_del
+    func_kill_pid
+    reset_resources
+    log_once "⚠️ IP subnet not found. Please check the basic settings of Hotspot User Blocker or PPPoE User Blocker"
+    echo "⚠️ IP subnet not found. Please check the basic settings of Hotspot User Blocker or PPPoE User Blocker."
+    exit 1
+fi
+
+if [ -z "$PORTS" ]; then
+    func_nft_del
+    func_kill_pid
+    reset_resources
+    log_once "⚠️ Port is empty. Please fill in Ports Black List in basic settings first"
+    echo "⚠️ Port is empty. Please fill in Ports Black List in basic settings first."
+    exit 1
+fi
+
+if [ "$ENABLED" != "1" ]; then
+    func_nft_del
+    func_kill_pid
+    reset_resources
+    log_once "⚠️ uci config is not enabled"
+    echo "⚠️ uci config is not enabled."
+else
+    if [ "$ACTION" = "update" ] && [ -n "$MAC_WHITELIST" ]; then
+        if [ -f "$PID_FILE" ]; then
+            PID_CURR="$(cat "$PID_FILE")"
+        else
+            PID_CURR=$(ps | grep '[a]cmt start' | awk '{print $1}')
+        fi
+        
+        UCI_HASH=$(cat "$UCI_HASH_FILE")
+        
+        IFS=',' read -ra MAC_LIST <<< "$MAC_WHITELIST"
+        for MAC in "${MAC_LIST[@]}"; do
+            LATEST_IP=$(get_latest_ip_by_mac "$MAC")
+            
+            for OLD_IP in $(get_old_ips_by_mac "$MAC"); do
+                [ -z "$OLD_IP" ] && continue
+                
+                IP_MATCHED=false
+                if [ -n "$IP_WHITELIST" ]; then
+                    IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+                    for IPS in "${IP_LIST[@]}"; do
+                        if [ "$OLD_IP" = "$IPS" ]; then
+                            if [[ "$OLD_IP" == $ABNORMAL_HS_IP && "$OLD_IP" != $ABNORMAL_PPP_IP ]]; then
+                                log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$OLD_IP)_(update failed for delete rules, Hotspot Users Blocker is not enabled" "not_a_new_entry_line"
+                            elif [[ "$OLD_IP" == $ABNORMAL_PPP_IP && "$OLD_IP" != $ABNORMAL_HS_IP ]]; then
+                                log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$OLD_IP)_(update failed for delete rules, PPPoE Users Blocker is not enabled" "not_a_new_entry_line"
+                            else
+                                log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$OLD_IP)_(update rejected for delete rules, already running on IP WhiteList" "not_a_new_entry_line"
+                            fi
+                            
+                            IP_MATCHED=true
+                            break
+                        fi
+                    done
+                fi
+                
+                if [ "$IP_MATCHED" = false ] && nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $OLD_IP"; then
+                    if [[ "$LATEST_IP" == $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                        log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$OLD_IP)_(update failed for delete rules, Hotspot Users Blocker is not enabled" "not_a_new_entry_line"
+                    elif [[ "$LATEST_IP" == $ABNORMAL_PPP_IP && "$LATEST_IP" != $ABNORMAL_HS_IP ]]; then
+                        log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$OLD_IP)_(update failed for delete rules, PPPoE Users Blocker is not enabled" "not_a_new_entry_line"
+                    else
+                        delete_nft_rule_for_ip "$PID_CURR" "$UCI_HASH" "$OLD_IP" "$MAC"
+                        
+                        if ! nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $OLD_IP"; then
+                            log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$OLD_IP)_(update successfully processed for delete rules" "not_a_new_entry_line"
+                        else
+                            log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$OLD_IP)_(update failed for delete rules to process" "not_a_new_entry_line"
+                        fi
+                    fi
+                fi
+            done
+            
+            if [ -z "$LATEST_IP" ]; then
+                log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(update rejected, not active in the database)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                continue
+            fi
+            
+            IP_MATCHED=false
+            if [ -n "$IP_WHITELIST" ]; then
+                IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+                for IPS in "${IP_LIST[@]}"; do
+                    if [ "$LATEST_IP" = "$IPS" ]; then
+                        if [[ "$LATEST_IP" == $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                            log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$LATEST_IP)_(update failed for adding rules, Hotspot Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                        elif [[ "$LATEST_IP" == $ABNORMAL_PPP_IP && "$LATEST_IP" != $ABNORMAL_HS_IP ]]; then
+                            log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$LATEST_IP)_(update failed for adding rules, PPPoE Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                        else
+                            if nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $LATEST_IP"; then
+                                log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(update rejected for adding rules, already running on IP WhiteList)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                            fi
+                        fi
+                        
+                        IP_MATCHED=true
+                        break
+                    fi
+                done
+            fi
+            
+            if [ "$IP_MATCHED" = false ] && ! nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $LATEST_IP"; then
+                if [[ "$LATEST_IP" == $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                    log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$LATEST_IP)_(update failed for adding rules, Hotspot Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                elif [[ "$LATEST_IP" == $ABNORMAL_PPP_IP && "$LATEST_IP" != $ABNORMAL_HS_IP ]]; then
+                    log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$LATEST_IP)_(update failed for adding rules, PPPoE Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                else
+                    add_nft_rule_for_ip "$PID_CURR" "$UCI_HASH" "$LATEST_IP" "$MAC"
+                    
+                    if nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $LATEST_IP"; then
+                        log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(update successfully processed for adding rules)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                    else
+                        log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$LATEST_IP)_(update failed for adding rules to process)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                    fi
+                fi
+            fi
+        done
+        exit 0
+    fi
+    
+    [ "$UCI_HASH" = "$PREV_HASH" ] && exit 0
+    
+    if [ "$ACTION" = "restart" ]; then
+        ${0} stop
+        sleep 1
+        ${0} start
+        exit 0
+    fi
+    
+    if [ "$ACTION" = "start" ] && [ -n "$PID" ] && kill -0 "$PID" && nft list chain inet acmt input >/dev/null 2>&1; then
+        echo "acmt is already running (PID: $PID)"
+        exit 0
+    fi
+    
+    if [ "$ACTION" = "start" ] && [ -t 0 ]; then    
+        acmt-ctrl start
+        exit 0
+    fi
+    
+    if [ "$ACTION" = "start" ]; then
+        reset_resources
+        echo $$ > "$PID_FILE"
+        echo "$UCI_HASH" > "$UCI_HASH_FILE"
+        
+        echo " " >> "$LOG_FILE"
+        echo " " >> "$LOG_FILE"
+        echo "APP Starting on (PID: $$)" >> "$LOG_FILE"
+        
+        if nft list table inet access-management >/dev/null 2>&1; then
+            nft delete table inet access-management
+        fi
+        
+        if ! nft list table inet acmt >/dev/null 2>&1; then
+            nft add table inet acmt
+        fi
+        
+        if nft list chain inet acmt input >/dev/null 2>&1; then
+            nft delete chain inet acmt input
+            nft add chain inet acmt input { type filter hook input priority 0 \; }
+        else
+            nft add chain inet acmt input { type filter hook input priority 0 \; }
+        fi
+        
+        if [ -f "$PID_FILE" ]; then
+            PID_CURR="$(cat "$PID_FILE")"
+        else
+            PID_CURR=$(ps | grep '[a]cmt start' | awk '{print $1}')
+        fi
+        
+        UCI_HASH=$(cat "$UCI_HASH_FILE")
+        
+        if [ -n "$IP_WHITELIST" ]; then
+            IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+            for IP in "${IP_LIST[@]}"; do
+                if ! nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $IP" && [[ "$IP" != $ABNORMAL_HS_IP && "$IP" != $ABNORMAL_PPP_IP ]]; then
+                    nft add rule inet acmt input ip saddr "$IP" tcp dport { $PORTS } accept
+                    
+                    NFT_STATE=$(nft -a list chain inet acmt input 2>/dev/null)
+                    NFT_ACCEPT_MATCH=$(echo "$NFT_STATE" | grep "accept" | grep "$IP")
+                    NFT_HASH=$(echo "$NFT_ACCEPT_MATCH" | md5sum | awk '{print $1}')
+                    NFT_HASH_FILE="/tmp/run/acmt_ip_$IP.hash"
+                    NFT_LINE=$(echo "$NFT_ACCEPT_MATCH" | perl -e '
+                        my $s = <>;
+                        $s =~ s/^\s+//;
+                        my @saved = ();
+                        $s =~ s/{([^}]*)}/push(@saved, $1), "{__PLACEHOLDER__" . $#saved . "}"/ge;
+                        $s =~ s/ /_/g;
+                        $s =~ s/{__PLACEHOLDER__(\d+)}/"{" . $saved[$1] . "}"/ge;
+                        print $s;
+                    ')
+                    echo "$NFT_HASH" > "$NFT_HASH_FILE"
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(Processing_IP_WhiteList:$IP)_(Adding_Rules:$NFT_LINE)" >> "$LOG_FILE"
+                fi
+            done
+        fi
+        
+        if [ -n "$MAC_WHITELIST" ]; then
+            IFS=',' read -ra MAC_LIST <<< "$MAC_WHITELIST"
+            for MAC in "${MAC_LIST[@]}"; do
+                LATEST_IP=$(get_latest_ip_by_mac "$MAC")
+                [ -z "$LATEST_IP" ] && continue
+                
+                IP_MATCHED=false
+                if [ -n "$IP_WHITELIST" ]; then
+                    IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+                    for IPS in "${IP_LIST[@]}"; do
+                        if [ "$LATEST_IP" = "$IPS" ]; then
+                            IP_MATCHED=true
+                            break
+                        fi
+                    done
+                fi
+                
+                if [ "$IP_MATCHED" = false ] && ! nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $LATEST_IP" && [[ "$LATEST_IP" != $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                    nft add rule inet acmt input ip saddr "$LATEST_IP" tcp dport { $PORTS } accept
+                    
+                    NFT_STATE=$(nft -a list chain inet acmt input 2>/dev/null)
+                    NFT_ACCEPT_MATCH=$(echo "$NFT_STATE" | grep "accept" | grep "$LATEST_IP")
+                    NFT_HASH=$(echo "$NFT_ACCEPT_MATCH" | md5sum | awk '{print $1}')
+                    NFT_HASH_FILE="/tmp/run/acmt_mac_$MAC.hash"
+                    NFT_LINE=$(echo "$NFT_ACCEPT_MATCH" | perl -e '
+                        my $s = <>;
+                        $s =~ s/^\s+//;
+                        my @saved = ();
+                        $s =~ s/{([^}]*)}/push(@saved, $1), "{__PLACEHOLDER__" . $#saved . "}"/ge;
+                        $s =~ s/ /_/g;
+                        $s =~ s/{__PLACEHOLDER__(\d+)}/"{" . $saved[$1] . "}"/ge;
+                        print $s;
+                    ')
+                    echo "$NFT_HASH" > "$NFT_HASH_FILE"
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(Processing_MAC_WhiteList:$MAC)_(Adding_Rules:$NFT_LINE)" >> "$LOG_FILE"
+                fi
+            done
+        fi
+        
+        if [ -n "$SUBNETS" ]; then
+            for SUBNET in $SUBNETS; do
+                if ! nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $SUBNET"; then
+                    nft add rule inet acmt input ip saddr "$SUBNET" tcp dport { $PORTS } drop
+                    
+                    NFT_STATE=$(nft -a list chain inet acmt input 2>/dev/null)
+                    NFT_DROP_MATCH=$(echo "$NFT_STATE" | grep "drop" | grep "$SUBNET")
+                    NFT_HASH=$(echo "$NFT_DROP_MATCH" | md5sum | awk '{print $1}')
+                    SAFE_SUBNET=$(echo "$SUBNET" | sed 's|/|_|g')
+                    NFT_HASH_FILE="/tmp/run/acmt_sub_${SAFE_SUBNET}.hash"
+                    NFT_LINE=$(echo "$NFT_DROP_MATCH" | perl -e '
+                        my $s = <>;
+                        $s =~ s/^\s+//;
+                        my @saved = ();
+                        $s =~ s/{([^}]*)}/push(@saved, $1), "{__PLACEHOLDER__" . $#saved . "}"/ge;
+                        $s =~ s/ /_/g;
+                        $s =~ s/{__PLACEHOLDER__(\d+)}/"{" . $saved[$1] . "}"/ge;
+                        print $s;
+                    ')
+                    echo "$NFT_HASH" > "$NFT_HASH_FILE"
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(Processing_IP_Subnets:$SUBNET)_(Adding_Rules:$NFT_LINE)" >> "$LOG_FILE"
+                fi
+            done
+        fi
+        
+        echo " " >> "$LOG_FILE"
+        
+        if [ -n "$IP_WHITELIST" ]; then
+            IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+            for IP in "${IP_LIST[@]}"; do
+                if nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $IP"; then
+                    NFT_STATE=$(nft -a list chain inet acmt input 2>/dev/null)
+                    NFT_ACCEPT_MATCH=$(echo "$NFT_STATE" | grep "accept" | grep "$IP")
+                    NFT_HASH=$(echo "$NFT_ACCEPT_MATCH" | md5sum | awk '{print $1}')
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(IP_WhiteList:$IP)_(successfully processed)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                elif [[ "$IP" == $ABNORMAL_HS_IP && "$IP" != $ABNORMAL_PPP_IP ]]; then
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(IP_WhiteList:$IP)_(Hotspot Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                elif [[ "$IP" == $ABNORMAL_PPP_IP && "$IP" != $ABNORMAL_HS_IP ]]; then
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(IP_WhiteList:$IP)_(PPPoE Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                else
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(IP_WhiteList:$IP)_(failed to process)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                fi
+            done
+        fi
+        
+        if [ -n "$MAC_WHITELIST" ]; then
+            IFS=',' read -ra MAC_LIST <<< "$MAC_WHITELIST"
+            for MAC in "${MAC_LIST[@]}"; do
+                LATEST_IP=$(get_latest_ip_by_mac "$MAC")
+                if [ -z "$LATEST_IP" ]; then
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(not active in the database)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                    continue
+                fi
+                
+                IP_MATCHED=false
+                if [ -n "$IP_WHITELIST" ]; then
+                    IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+                    for IPS in "${IP_LIST[@]}"; do
+                        if [ "$LATEST_IP" = "$IPS" ]; then
+                            if [[ "$LATEST_IP" == $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                                echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(Hotspot Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                            elif [[ "$LATEST_IP" == $ABNORMAL_PPP_IP && "$LATEST_IP" != $ABNORMAL_HS_IP ]]; then
+                                echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(PPPoE Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                            else
+                                if nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $LATEST_IP"; then
+                                    NFT_STATE=$(nft -a list chain inet acmt input 2>/dev/null)
+                                    NFT_ACCEPT_MATCH=$(echo "$NFT_STATE" | grep "accept" | grep "$LATEST_IP")
+                                    NFT_HASH=$(echo "$NFT_ACCEPT_MATCH" | md5sum | awk '{print $1}')
+                                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(already running on IP WhiteList)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                                fi
+                            fi
+                            
+                            IP_MATCHED=true
+                            break
+                        fi
+                    done
+                fi
+                
+                if [ "$IP_MATCHED" = false ]; then
+                    if nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $LATEST_IP"; then
+                        NFT_STATE=$(nft -a list chain inet acmt input 2>/dev/null)
+                        NFT_ACCEPT_MATCH=$(echo "$NFT_STATE" | grep "accept" | grep "$LATEST_IP")
+                        NFT_HASH=$(echo "$NFT_ACCEPT_MATCH" | md5sum | awk '{print $1}')
+                        echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(successfully processed)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                    elif [[ "$LATEST_IP" == $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                        echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(Hotspot Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                    elif [[ "$LATEST_IP" == $ABNORMAL_PPP_IP && "$LATEST_IP" != $ABNORMAL_HS_IP ]]; then
+                        echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(PPPoE Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                    else
+                        echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(failed to process)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                    fi
+                fi
+            done
+        fi
+        
+        if [ -n "$SUBNETS" ]; then
+            for SUBNET in $SUBNETS; do
+                if nft -a list chain inet acmt input 2>/dev/null | grep -q "ip saddr $SUBNET"; then
+                    NFT_STATE=$(nft -a list chain inet acmt input 2>/dev/null)
+                    NFT_DROP_MATCH=$(echo "$NFT_STATE" | grep "drop" | grep "$SUBNET")
+                    NFT_HASH=$(echo "$NFT_DROP_MATCH" | md5sum | awk '{print $1}')
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(IP_Subnets:$SUBNET)_(successfully processed)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                else
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')]_(PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(IP_Subnets:$SUBNET)_(failed to process)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                fi
+            done
+        fi
+        
+        sleep 1
+        
+        if [ -n "$MAC_WHITELIST" ]; then
+            echo " " >> "$LOG_FILE"
+            echo " " >> "$LOG_FILE"
+            echo "APP auto Update > MAC_WhiteList (loop in $APP_LOOP seconds)" >> "$LOG_FILE"
+        fi
+        
+        while true; do
+            if ps -eo pid,cmd | grep -E '[a]cmt (start|stop|restart|reload)' | grep -vw $$ >/dev/null; then
+                sleep 1
+                continue
+            fi
+            
+            [ "$UCI_HASH" != "$PREV_HASH" ] && sleep 5
+                
+            ${0} update
+            sleep "$APP_LOOP"
+        done
+        
+        if ! kill -0 "$CTRL_PID" 2>/dev/null; then
+            nohup acmt-ctrl up >/dev/null 2>&1 &
+        fi
+    fi
+fi
