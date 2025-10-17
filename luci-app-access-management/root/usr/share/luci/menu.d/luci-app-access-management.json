@@ -1,0 +1,48 @@
+{
+	"admin/services/acmt": {
+		"title": "AccessMt",
+		"order": 80,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"uci": { "acmt": true }
+		}
+	},
+
+	"admin/services/acmt/rpb": {
+		"title": "Router Port Blocker",
+		"order": 1,
+		"action": {
+			"type": "view",
+			"path": "acmt/rpb"
+		}
+	},
+
+	"admin/services/acmt/uhttpd": {
+		"title": "uHTTPd Web Server",
+		"order": 2,
+		"action": {
+			"type": "view",
+			"path": "acmt/uhttpd"
+		}
+	},
+
+	"admin/services/acmt/log": {
+		"title": "Logs",
+		"order": 3,
+		"action": {
+			"type": "view",
+			"path": "acmt/logs"
+		}
+	},
+
+	"admin/services/acmt/about": {
+		"title": "About",
+		"order": 4,
+		"action": {
+			"type": "view",
+			"path": "acmt/about"
+		}
+	}
+}
