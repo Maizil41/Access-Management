@@ -1,33 +1,113 @@
-#!/bin/sh
+#!/bin/bash
 
-mv /etc/config/uhttpd /etc/config/uhttpd.bak && mv /root/acmt-tmp/uhttpd /etc/config/uhttpd
+INIT_NAME="access-management"
+INIT_FILE="/etc/init.d/$INIT_NAME"
+LUCI_APP="luci-app-$INIT_NAME"
+APP_NAME="acmt"
+CTRL_NAME="acmt-ctrl"
+APP_VERSION="1.1"
+SCRIPT_DIR="/usr/bin/"
+
+RED="\e[31m"
+PURPLE="\e[35m"
+CYAN="\e[36m"
+YELLOW="\e[33m"
+BLUE="\e[34m"
+GREEN="\e[32m"
+RESET="\e[0m"
+
+PKG_INFO="$(opkg status "$LUCI_APP")"
+LUCI_APP_VERSION=""
+echo "$PKG_INFO" | grep -Eq '^Status: install (user|ok) installed' && \
+LUCI_APP_VERSION="$(echo "$PKG_INFO" | grep '^Version:' | awk '{print $2}')"
+
+run_progress() {
+    local command="$1"
+    local label="$2"
+    echo -ne "${YELLOW}${label}${RESET}\n"
+
+    (eval "$command") &
+    pid=$!
+
+    local spin='-\|/'
+    local i=0
+    local percent=0
+
+    while kill -0 "$pid" 2>/dev/null; do
+        percent=$(( (percent + 2) % 100 ))
+        i=$(( (i + 1) % 4 ))
+        printf "\r${PURPLE}[%s] $label... %3d%%$RESET" "${spin:$i:1}" "$percent"
+        read -t 0.1 <> <(:) || :
+    done
+
+    printf "\r${GREEN}[SUCCESS] $label ✓ 100%%${RESET}\n"
+    return
+}
+
+echo -e "$CYAN"
+echo "╔════════════════════════════════════╗"
+echo "║     Access Management Installer    ║"
+echo "╚════════════════════════════════════╝"
+echo -e "$RESET"
 
 sleep 1
-mv /usr/lib/lua/luci/view/netmon.htm /usr/lib/lua/luci/view/netmon.htm.bak
 
-sleep 1
-mv /root/acmt-tmp/netmon.htm /usr/lib/lua/luci/view/netmon.htm
+echo -e "${BLUE}Starting installing Access Management V${APP_VERSION}${RESET}\n"
 
-sleep 1
-chmod +x /usr/bin/access-management
+if run_progress "sleep 1" "Check if a previous version of Access-Management is installed" && \
+   [ "$LUCI_APP_VERSION" == "1.0" ]; then
+    run_progress "sleep 1 && [ -f ${SCRIPT_DIR}$INIT_NAME ] && ${SCRIPT_DIR}$INIT_NAME stop" "Access-Management stops long"
+    run_progress "sleep 1 && rm -rf /etc/config/$INIT_NAME" "delete old Access Management configuration"
+    run_progress "sleep 1 && rm -rf ${SCRIPT_DIR}$INIT_NAME" "delete old scripts"
+    run_progress "sleep 1 && rm -rf /usr/lib/lua/luci/controller/$INIT_NAME.lua && \
+        rm -r /usr/lib/lua/luci/model/cbi/$INIT_NAME && \
+        rm -rf /www/luci-static/resources/access_management_about.js && \
+        rm -rf /www/luci-static/resources/assets/img/qristaufik.png && \
+        rm -rf /tmp/log/access_management.log" "delete old resources"
+    run_progress "sleep 1 && [ -f /usr/lib/lua/luci/view/netmon.htm ] && \
+        [ -f /usr/lib/lua/luci/view/netmon.htm.bak ] && rm -rf /usr/lib/lua/luci/view/netmon.htm && \
+        mv /usr/lib/lua/luci/view/netmon.htm.bak /usr/lib/lua/luci/view/netmon.htm" "Netmon view file fix"
+    run_progress "sleep 1 && cp -a /www/users/hotspotlogin/. /www/hotspotlogin 2>/dev/null && \
+        rm -r /www/users/hotspotlogin" "default hotspotlogin recovery"
 
-sleep 1
-chmod +x /etc/init.d/access-management
+    if nft list table inet "$INIT_NAME" >/dev/null 2>&1; then
+        nft delete table inet "$INIT_NAME"
+    fi
+fi
 
-sleep 1
-chmod 600 /etc/config/uhttpd
+run_progress "sleep 1 && mkdir -p /www/users/cgi-bin" "create cgi-bin directory"
+run_progress "sleep 1 && [ -f /www/cgi-bin/cekip ] && ln -s /www/cgi-bin/cekip /www/users/cgi-bin/cekip" "cekip symlinks"
+run_progress "sleep 1 && [ -f /www/cgi-bin/ping ] && ln -s /www/cgi-bin/ping /www/users/cgi-bin/ping" "ping symlinks"
+run_progress "sleep 1 && [ -f /www/cgi-bin/radmon ] && ln -s /www/cgi-bin/radmon /www/users/cgi-bin/radmon" "radmon symlinks"
+run_progress "sleep 1 && [ -f /www/cgi-bin/version ] && ln -s /www/cgi-bin/version /www/users/cgi-bin/version" "version symlinks"
+run_progress "sleep 1 && ln -s /www/hotspotlogin /www/users/hotspotlogin" "hotspotlogin symlinks"
+run_progress "sleep 1 && ln -s /usr/bin/$APP_NAME /usr/bin/$CTRL_NAME" "$CTRL_NAME script symlinks"
+run_progress "sleep 1 && chmod +x /usr/bin/$APP_NAME" "executable $APP_NAME script"
+run_progress "sleep 1 && chmod +x /usr/bin/$CTRL_NAME" "executable $CTRL_NAME script"
+run_progress "sleep 1 && chmod +x /etc/init.d/$INIT_NAME" "executable $INIT_NAME init"
+run_progress "sleep 1 && chmod 600 /etc/config/$APP_NAME" "executable $APP_NAME config"
+run_progress "sleep 1 && chmod 600 /etc/config/uhttpd" "executable uhttpd config"
+run_progress "sleep 1 && sed -i '/^\s*doc_root\s*=/ s/^/;/' /etc/php.ini" "edit php root configuration"
+run_progress "sleep 1 && cd /www/users && tar -xzf pppoepages.tar.gz && cd" "Extract pppoepages"
 
-sleep 1
-mkdir -p /www/users/hotspotlogin
+if [ "$LUCI_APP_VERSION" == "$APP_VERSION" ]; then
+    echo -e "$GREEN"
+    echo "╔════════════════════════════════════════╗"
+    echo "║ Access Management Installation Success ║"
+    echo "╚════════════════════════════════════════╝"
+    echo -e "$RESET"
+    echo -e "${BLUE}License : (GPL-2.0) GNU General Public License Version 2$RESET"
+    echo -e "${BLUE}Created & developed by @Taufik <https://t.me/taufik_n_a>$RESET"
+    echo -e "${BLUE}© 2025 AlphaNetwork All rights reserved.${RESET}\n"
+    echo -e "${BLUE}Thank you for using Access Management :)${RESET}\n"
 
-sleep 1
-cp -a /www/hotspotlogin/. /www/users/hotspotlogin
-
-sleep 1
-sed -i '/^\s*doc_root\s*=/ s/^/;/' /etc/php.ini
-
-sleep 1
-rm -rf /root/acmt-tmp/
-
-sleep 1
-/etc/init.d/uhttpd restart
+    sleep 1 && service $INIT_NAME enable
+    sleep 1 && service uhttpd restart
+else
+    echo -e "$RED"
+    echo "╔════════════════════════════════════════╗"
+    echo -e "║ ${CYAN}Access Management installation failed  ${RESET}${RED}║"
+    echo "╚════════════════════════════════════════╝"
+    echo -e "$RESET"
+    echo -e "${BLUE}Please repeat the installation.$RESET"
+fi
