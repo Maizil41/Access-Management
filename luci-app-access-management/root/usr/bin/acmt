@@ -1,0 +1,1827 @@
+#!/bin/bash
+# Hotspot & PPPoE Users blocker to RadMonv2 gateway router port
+# License : (GPL-2.0) GNU General Public License Version 2
+# Created & developed by @Taufik <https://t.me/taufik_n_a>
+# © 2025 AlphaNetwork All rights reserved.
+
+show_banner() {
+    local RED="\e[1;31m"
+    local PURPLE="\e[1;35m"
+    local CYAN="\e[1;36m"
+    local YELLOW="\e[1;33m"
+    local BLUE="\e[1;34m"
+    local GREEN="\e[1;32m"
+    local RESET="\e[0m"
+
+    echo -e "${CYAN}──────────────────────────────────────────────────────────────────────${RESET}"
+    echo -e "${PURPLE} █████${GREEN}╗  ${PURPLE}██████${GREEN}╗ ${PURPLE}██████${GREEN}╗${PURPLE}███████${GREEN}╗${PURPLE}███████${GREEN}╗${PURPLE}███████${GREEN}╗${PURPLE}███${GREEN}╗   ${PURPLE}███${GREEN}╗${PURPLE}████████${GREEN}╗${RESET}"
+    echo -e "${BLUE}██${GREEN}╔══${BLUE}██${GREEN}╗${BLUE}██${GREEN}╔════╝${BLUE}██${GREEN}╔════╝${BLUE}██${GREEN}╔════╝${BLUE}██${GREEN}╔════╝${BLUE}██${GREEN}╔════╝${BLUE}████${GREEN}╗ ${BLUE}████${GREEN}║╚══${BLUE}██${GREEN}╔══╝${RESET}"
+    echo -e "${CYAN}███████${GREEN}║${CYAN}██${GREEN}║     ${CYAN}██${GREEN}║     ${CYAN}█████${GREEN}╗  ${CYAN}███████${GREEN}╗${CYAN}███████${GREEN}╗${CYAN}██${GREEN}╔${CYAN}████${GREEN}╔${CYAN}██${GREEN}║   ${CYAN}██${GREEN}║   ${RESET}"
+    echo -e "${BLUE}██${GREEN}╔══${BLUE}██${GREEN}║${BLUE}██${GREEN}║     ${BLUE}██${GREEN}║     ${BLUE}██${GREEN}╔══╝  ╚════${BLUE}██${GREEN}║╚════${BLUE}██${GREEN}║${BLUE}██${GREEN}║╚${BLUE}██${GREEN}╔╝${BLUE}██${GREEN}║   ${BLUE}██${GREEN}║   ${RESET}"
+    echo -e "${PURPLE}██${GREEN}║  ${PURPLE}██${GREEN}║╚${PURPLE}██████${GREEN}╗╚${PURPLE}██████${GREEN}╗${PURPLE}███████${GREEN}╗${PURPLE}███████${GREEN}║${PURPLE}███████${GREEN}║${PURPLE}██${GREEN}║ ╚═╝ ${PURPLE}██${GREEN}║   ${PURPLE}██${GREEN}║   ${RESET}"
+    echo -e "${GREEN}╚═╝  ╚═╝ ╚═════╝ ╚═════╝╚══════╝╚══════╝╚══════╝╚═╝     ╚═╝   ╚═╝   ${RESET}"
+    echo -e "${PURPLE} ██████${GREEN}╗${PURPLE}██${GREEN}╗     ${PURPLE}██${GREEN}╗    ${PURPLE}████████${GREEN}╗ ${PURPLE}██████${GREEN}╗  ${PURPLE}██████${GREEN}╗ ${PURPLE}██${GREEN}╗     ${PURPLE}███████${GREEN}╗  ${RESET}"
+    echo -e "${BLUE}██${GREEN}╔════╝${BLUE}██${GREEN}║     ${BLUE}██${GREEN}║    ╚══${BLUE}██${GREEN}╔══╝${BLUE}██${GREEN}╔═══${BLUE}██${GREEN}╗${BLUE}██${GREEN}╔═══${BLUE}██${GREEN}╗${BLUE}██${GREEN}║     ${BLUE}██${GREEN}╔════╝  ${RESET}"
+    echo -e "${CYAN}██${GREEN}║     ${CYAN}██${GREEN}║     ${CYAN}██${GREEN}║       ${CYAN}██${GREEN}║   ${CYAN}██${GREEN}║   ${CYAN}██${GREEN}║${CYAN}██${GREEN}║   ${CYAN}██${GREEN}║${CYAN}██${GREEN}║     ${CYAN}███████${GREEN}╗  ${RESET}"
+    echo -e "${BLUE}██${GREEN}║     ${BLUE}██${GREEN}║     ${BLUE}██${GREEN}║       ${BLUE}██${GREEN}║   ${BLUE}██${GREEN}║   ${BLUE}██${GREEN}║${BLUE}██${GREEN}║   ${BLUE}██${GREEN}║${BLUE}██${GREEN}║     ╚════${BLUE}██${GREEN}║  ${RESET}"
+    echo -e "${GREEN}╚${PURPLE}██████${GREEN}╗${PURPLE}███████${GREEN}╗${PURPLE}██${GREEN}║       ${PURPLE}██${GREEN}║   ╚${PURPLE}██████${GREEN}╔╝╚${PURPLE}██████${GREEN}╔╝${PURPLE}███████${GREEN}╗${PURPLE}███████${GREEN}║  ${RESET}"
+    echo -e "${GREEN} ╚═════╝╚══════╝╚═╝       ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚══════╝  ${RESET}"
+    echo -e "${CYAN}──────────────────────────────────────────────────────────────────────${RESET}"
+}
+
+show_help() {
+    local customMessage="$1"
+    show_banner
+
+    if [ -n "$customMessage" ]; then
+        echo ""
+        echo -e "${YELLOW}$customMessage${RESET}"
+    fi
+
+    cat <<EOF
+
+Usage: $(basename $0) [command]
+
+Available commands:
+    start           Start the app
+    stop            Stop the app
+    restart         Restart the app
+    reload          Reload the app configuration
+    status          App status
+    -v, --version   Show LuCI & script version
+    -h, --help      Show this help message
+    -i, --info      Show brief info about this app
+    --reset         Reset configuration file and uci error
+    --uninstall     Uninstall Access Management, restore uHTTPd, and clean up all related files
+
+EOF
+}
+
+show_info() {
+    show_banner
+
+    cat <<EOF
+
+Access Management (AccessMt - acmt)
+
+Hotspot & PPPoE Users blocker to RadMonv2 gateway router port
+Controls blocking logic for Hotspot & PPPoE users. Part of Router Ports Blocker
+
+use acmt --help to see a list of commands
+
+If you support the development of this App,
+you can donate via the LuCi menu "Services > AccessMt > About"
+
+License : (GPL-2.0) GNU General Public License Version 2
+Created & developed by @Taufik <https://t.me/taufik_n_a>
+© 2025 AlphaNetwork All rights reserved.
+
+EOF
+}
+
+generate_conf() {
+    local conf_file="$1"
+    cat << EOF > "$conf_file"
+# ### Current Access Management Config ###
+#
+# License : (GPL-2.0) GNU General Public License Version 2
+# Created & developed by @Taufik <https://t.me/taufik_n_a>
+# © 2025 AlphaNetwork All rights reserved.
+
+ENABLED="$(uci get acmt.main.enabled 2>/dev/null)"
+HS_ENABLED="$(uci get acmt.main.hs_enabled 2>/dev/null)"
+PPP_ENABLED="$(uci get acmt.main.ppp_enabled 2>/dev/null)"
+IP_WL_ENABLED="$(uci get acmt.main.ip_wl_enabled 2>/dev/null)"
+MAC_WL_ENABLED="$(uci get acmt.main.mac_wl_enabled 2>/dev/null)"
+APP_LOOP="$(uci get acmt.main.app_loop 2>/dev/null)"
+CTRL_LOOP="$(uci get acmt.main.ctrl_loop 2>/dev/null)"
+DB_SERVER="$(uci get acmt.main.db_server 2>/dev/null)"
+MYSQL_PORT="$(uci get acmt.main.mysql_port 2>/dev/null)"
+DB_USER="$(uci get acmt.main.db_user 2>/dev/null)"
+DB_PASS="$(uci get acmt.main.db_pass 2>/dev/null)"
+DB_NAME="$(uci get acmt.main.db_name 2>/dev/null)"
+PORTS="$(uci get acmt.main.ports 2>/dev/null)"
+IP_WHITELIST="$(uci get acmt.main.ip_whitelist 2>/dev/null)"
+MAC_WHITELIST="$(uci get acmt.main.mac_whitelist 2>/dev/null)"
+EOF
+}
+
+generate_acmt_config() {
+    local uci_file="/etc/config/acmt"
+    
+    [ -z "$uci_file" ] && return
+    
+    cat << EOF > "$uci_file"
+
+config acmt 'main'
+	option enabled '0'
+	option ppp_enabled '1'
+	option hs_enabled '1'
+	option ip_wl_enabled '1'
+	option mac_wl_enabled '1'
+	option app_loop '15'
+	option ctrl_loop '3'
+	option db_server '127.0.0.1'
+	option mysql_port '3306'
+	option db_user 'radmon'
+	option db_pass 'radmon'
+	option db_name 'radmon'
+	option ports '9090,19999,22,3000,7681,8080,8443'
+
+EOF
+    
+    chmod 600 "$uci_file" 2>/dev/null
+}
+
+generate_uhttpd_config() {
+    local uci_file="/etc/config/uhttpd"
+    
+    [ -z "$uci_file" ] && return
+    
+    cat << EOF > "$uci_file"
+
+config uhttpd 'main'
+	option enabled '1'
+	option redirect_https '0'
+	option rfc1918_filter '1'
+	option no_dirlists '1'
+	option home '/www'
+	list listen_http '0.0.0.0:8080'
+	list listen_http '[::]:8080'
+	list listen_https '0.0.0.0:8443'
+	list listen_https '[::]:8443'
+	list index_page 'cgi-bin/luci'
+	list index_page 'index.html'
+	list index_page 'index.php'
+	option cgi_prefix '/cgi-bin'
+	list lua_prefix '/cgi-bin/luci=/usr/lib/lua/luci/sgi/uhttpd.lua'
+	option max_requests '50'
+	option max_connections '100'
+	option script_timeout '3600'
+	option network_timeout '30'
+	option http_keepalive '20'
+	option ubus_prefix '/ubus'
+	option interpreter '.php=/usr/bin/php-cgi'
+	option cert '/etc/uhttpd.crt'
+	option key '/etc/uhttpd.key'
+
+config cert 'defaults'
+	option days '730'
+	option key_type 'ec'
+	option bits '2048'
+	option ec_curve 'P-256'
+	option country 'ZZ'
+	option state 'Somewhere'
+	option location 'Unknown'
+	option commonname 'OpenWrt'
+
+config uhttpd 'users'
+	option enabled '1'
+	option redirect_https '0'
+	option rfc1918_filter '1'
+	option no_dirlists '1'
+	option home '/www/users'
+	list listen_http '0.0.0.0:80'
+	list listen_https '0.0.0.0:443'
+	list index_page 'index.html'
+	list index_page 'index.php'
+	option cgi_prefix '/cgi-bin'
+	option max_requests '50'
+	option max_connections '100'
+	option script_timeout '3600'
+	option network_timeout '30'
+	option http_keepalive '20'
+	option interpreter '.php=/usr/bin/php-cgi'
+	option cert '/etc/uhttpd.crt'
+	option key '/etc/uhttpd.key'
+	option error_page '/index.php'
+
+EOF
+    
+    chmod 600 "$uci_file" 2>/dev/null
+}
+
+generate_uhttpd_config_default() {
+    local uci_file="/etc/config/uhttpd"
+    
+    [ -z "$uci_file" ] && return
+    
+    cat << EOF > "$uci_file"
+
+config uhttpd 'main'
+	list listen_http '0.0.0.0:80'
+	list listen_http '[::]:80'
+	list listen_https '0.0.0.0:443'
+	list listen_https '[::]:443'
+	option redirect_https '0'
+	option home '/www'
+	option rfc1918_filter '1'
+	option max_requests '50'
+	option max_connections '100'
+	option cert '/etc/uhttpd.crt'
+	option key '/etc/uhttpd.key'
+	option cgi_prefix '/cgi-bin'
+	list lua_prefix '/cgi-bin/luci=/usr/lib/lua/luci/sgi/uhttpd.lua'
+	option script_timeout '3600'
+	option network_timeout '30'
+	option http_keepalive '20'
+	option tcp_keepalive '1'
+	option ubus_prefix '/ubus'
+	option interpreter '.php=/usr/bin/php-cgi'
+	list index_page 'cgi-bin/luci'
+	list index_page 'index.html'
+	list index_page 'index.php'
+
+config cert 'defaults'
+	option days '730'
+	option key_type 'ec'
+	option bits '2048'
+	option ec_curve 'P-256'
+	option country 'ZZ'
+	option state 'Somewhere'
+	option location 'Unknown'
+	option commonname 'OpenWrt'
+
+EOF
+
+chmod 600 "$uci_file" 2>/dev/null
+}
+
+generate_users_index() {
+    local index_file="/www/users/index.php"
+    
+    [ -z "$index_file" ] && return
+    
+    cat << 'EOF' > "$index_file"
+<?php
+/*
+ * ------------------------------------------------------------------
+ * Smart Redirector for Admin, PPPoE users, & Hotspot users
+ * - Detect client IP from multiple headers
+ * - Detect request from multiple server
+ * - Match IP ranges from get function
+ * - Redirect users based on IP and URL to the right destination
+ * ------------------------------------------------------------------
+ * License : (GPL-2.0) GNU General Public License Version 2
+ * Created & developed by @Taufik <https://t.me/taufik_n_a>
+ * © 2025 AlphaNetwork by @Taufik
+ * ------------------------------------------------------------------
+*/
+
+function getUserIp($mode = 'long')
+{
+    $candidates = [
+        'HTTP_CF_CONNECTING_IP',
+        'HTTP_X_FORWARDED_FOR',
+        'HTTP_CLIENT_IP',
+        'REMOTE_ADDR'
+    ];
+
+    foreach ($candidates as $key) {
+        if (!empty($_SERVER[$key])) {
+            $ip = trim(explode(',', $_SERVER[$key])[0]);
+
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                if ($mode === 'ip') return $ip;
+                return ip2long($ip);
+            }
+        }
+    }
+
+    return ($mode === 'ip') ? '0.0.0.0' : 0;
+}
+
+function getAcmtConfig($searchConf)
+{
+    $conf = '/tmp/run/acmt.conf';
+    $conf_results = '';
+
+    if (file_exists($conf)) {
+        $config = file_get_contents($conf);
+        if (preg_match('/^' . preg_quote($searchConf, '/') . '="([^"]+)"/m', $config, $m)) {
+            $conf_results = $m[1];
+        }
+    }
+
+    return $conf_results;
+}
+
+function getConfigValue($key, $default = '')
+{
+    $val = getAcmtConfig($key);
+    if (!empty($val)) return $val;
+
+    $uciKey = strtolower($key);
+    $uciVal = trim(shell_exec("uci get acmt.main." . escapeshellarg($uciKey) . " 2>/dev/null"));
+    if (!empty($uciVal)) return $uciVal;
+
+    return $default;
+}
+
+function getIpMac($action, $input)
+{
+    $db_server = getConfigValue('DB_SERVER', '127.0.0.1');
+    $db_user   = getConfigValue('DB_USER', 'radmon');
+    $db_pass   = getConfigValue('DB_PASS', 'radmon');
+    $db_name   = getConfigValue('DB_NAME', 'radmon');
+
+    $conn = new mysqli($db_server, $db_user, $db_pass, $db_name);
+
+    $sql = "";
+    $output = "";
+    if ($conn->connect_error) {
+        return $output;
+    }
+
+    if ($action === "getIP") {
+        $sql = "SELECT framedipaddress FROM radacct WHERE acctstoptime IS NULL AND REPLACE(callingstationid, '-', ':') = REPLACE(?, '-', ':') ORDER BY radacctid DESC LIMIT 1";
+    } elseif ($action === "getMAC") {
+        $sql = "SELECT callingstationid FROM radacct WHERE acctstoptime IS NULL AND framedipaddress = ? ORDER BY radacctid DESC LIMIT 1";
+    } else {
+        return $output;
+    }
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $input);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($row = $result->fetch_assoc()) {
+        if ($action === "getIP") {
+            $output = $row['framedipaddress'];
+        } elseif ($action === "getMAC") {
+            $output = $row['callingstationid'];
+        } else {
+            return $output;
+        }
+    }
+
+    $stmt->close();
+    $conn->close();
+    return $output;
+}
+
+function getWListedIp()
+{
+    $conf_enabled = getConfigValue('IP_WL_ENABLED', '');
+    $conf_output  = getConfigValue('IP_WHITELIST', '');
+
+    if ($conf_enabled === "1" && !empty($conf_output)) {
+        $ipList = array_filter(array_map('trim', explode(",", $conf_output)));
+        $userIp = getUserIp('long');
+
+        foreach ($ipList as $ip) {
+            if (!empty($ip) && $userIp === ip2long($ip)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function getWListedMac()
+{
+    $conf_enabled = getConfigValue('MAC_WL_ENABLED', '');
+    $conf_output  = getConfigValue('MAC_WHITELIST', '');
+
+    if ($conf_enabled === "1" && !empty($conf_output)) {
+        $macList = array_filter(array_map('trim', explode(",", $conf_output)));
+        $userIp  = getUserIp('long');
+
+        foreach ($macList as $mac) {
+            $ip = getIpMac("getIP", $mac);
+            if (!empty($ip) && $userIp === ip2long($ip)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function getAcmtStatus()
+{
+    $output = [];
+    $exitCode = 1;
+    exec("/usr/bin/acmt status", $output, $exitCode);
+    return $exitCode === 0;
+}
+
+function getUhttpdPort()
+{
+    $conf = '/etc/config/uhttpd';
+    $fallbackPorts = '8080';
+
+    if (!file_exists($conf)) return $fallbackPorts;
+
+    $config = file_get_contents($conf);
+    if (preg_match("/config uhttpd 'main'(.+?)(config|$)/s", $config, $matches)) {
+        if (preg_match("/list listen_http '([^']+):(\d+)'/", $matches[1], $m)) {
+            return $m[2];
+        } elseif (preg_match("/option listen_http '([^']+):(\d+)'/", $matches[1], $m)) {
+            return $m[2];
+        } else {
+            return $fallbackPorts;
+        }
+    }
+
+    return $fallbackPorts;
+}
+
+function getRangeFromPrefix($baseIp)
+{
+    $parts = explode('.', $baseIp);
+    if (count($parts) === 4) {
+        $prefix = "{$parts[0]}.{$parts[1]}.{$parts[2]}";
+        return ['start' => ip2long("$prefix.2"), 'end' => ip2long("$prefix.254")];
+    }
+    return [];
+}
+
+function getPPPoERange()
+{
+    $conf = '/etc/config/pppoe';
+    if (file_exists($conf) && preg_match("/option\s+localip\s+'?([\d\.]+)'?/", file_get_contents($conf), $m)) {
+        return getRangeFromPrefix($m[1]);
+    }
+    return [];
+}
+
+function getHotspotRange()
+{
+    $conf = '/etc/config/chilli';
+    if (file_exists($conf) && preg_match("/option\s+uamlisten\s+'?([\d\.]+)'?/", file_get_contents($conf), $m)) {
+        return getRangeFromPrefix($m[1]);
+    }
+    return [];
+}
+
+function getLanRange()
+{
+    $networkFile = '/etc/config/network';
+    $ipaddr = '';
+    $netmask = '';
+
+    if (file_exists($networkFile)) {
+        $contents = file_get_contents($networkFile);
+
+        if (preg_match("/config interface 'lan'(.+?)(config|$)/s", $contents, $sections)) {
+            $lanBlock = $sections[1];
+
+            if (preg_match("/option ipaddr '([0-9\.]+)'/", $lanBlock, $ipMatch)) {
+                $ipaddr = $ipMatch[1];
+            }
+
+            if (preg_match("/option netmask '([0-9\.]+)'/", $lanBlock, $maskMatch)) {
+                $netmask = $maskMatch[1];
+            }
+        }
+    }
+
+    if ($ipaddr && $netmask) {
+        $ipLong = ip2long($ipaddr);
+        $maskLong = ip2long($netmask);
+        $network = $ipLong & $maskLong;
+        $broadcast = $network | (~$maskLong & 0xFFFFFFFF);
+
+        return [
+            'start' => $network + 2,
+            'end'   => $broadcast - 1
+        ];
+    }
+
+    return [];
+}
+
+function cidrToRange($ip, $cidr, $func)
+{
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return null;
+
+    if (!is_numeric($cidr) || $cidr < 0 || $cidr > 32) return null;
+
+    $ipLong = ip2long($ip);
+    $mask = -1 << (32 - intval($cidr));
+    $network = $ipLong & $mask;
+    $broadcast = $network | (~$mask & 0xFFFFFFFF);
+
+    if ($network <= 0 || $broadcast >= 0xFFFFFFFF) {
+        return null;
+    }
+
+    if ($func === "ZT") return ['start' => $network + 1, 'end' => $broadcast - 1];
+    elseif ($func === "TS") return ['start' => $network - 1, 'end' => $broadcast + 1];
+    else return null;
+}
+
+function getZerotierRange()
+{
+    $ranges = [];
+
+    $exec = shell_exec("zerotier-cli listnetworks 2>/dev/null");
+    if ($exec) {
+        foreach (explode("\n", $exec) as $line) {
+            if (preg_match("/\s([\d\.]+)\/(\d+)/", $line, $m)) {
+                $range = cidrToRange($m[1], $m[2], "ZT");
+                if ($range) $ranges[] = $range;
+            }
+        }
+    }
+
+    return $ranges;
+}
+
+function getTailscaleRange()
+{
+    $ranges = [];
+
+    $which = trim(shell_exec("which tailscale 2>/dev/null"));
+    if (empty($which)) return $ranges;
+
+    $serviceStatus = trim(shell_exec("/etc/init.d/tailscale status 2>/dev/null"));
+    if ($serviceStatus !== "running") return $ranges;
+
+    $exec = shell_exec("tailscale status --json 2>/dev/null");
+    if (!$exec) return $ranges;
+
+    $json = json_decode($exec, true);
+    if (!$json) return $ranges;
+
+    $addRanges = function($cidrs) use (&$ranges) {
+        foreach ($cidrs as $cidr) {
+            if (strpos($cidr, '/') !== false) {
+                list($ip, $prefix) = explode('/', $cidr);
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    $range = cidrToRange($ip, $prefix, "TS");
+                    if ($range) $ranges[] = $range;
+                }
+            }
+        }
+    };
+
+    if (!empty($json['Self']['AllowedIPs']))
+        $addRanges($json['Self']['AllowedIPs']);
+
+    if (!empty($json['Peer'])) {
+        foreach ($json['Peer'] as $peer) {
+            if (!empty($peer['AllowedIPs']))
+                $addRanges($peer['AllowedIPs']);
+        }
+    }
+
+    return $ranges;
+}
+
+function substrStrlen($uri, $strings)
+{
+    if (substr($uri, -strlen($strings)) === $strings) return true;
+    return false;
+}
+
+function getSegmentsAfterPPP(string $path): array {
+    if (strpos($path, '/ppp') !== 0) return [];
+    $after = substr($path, 4);
+    $after = ltrim($after, '/');
+    return $after === '' ? [] : explode('/', $after);
+}
+
+function redirectToMainPort($host, $ports, $uri)
+{
+    header("HTTP/1.1 301 Moved Permanently");
+    header("Location: http://{$host}:{$ports}{$uri}");
+    exit;
+}
+
+function getVariable($variableName)
+{
+    $variableSelect = null;
+
+    if (empty($variableName)) return null;
+    elseif ($variableName === "ip") $variableSelect = getUserIp('long');
+    elseif ($variableName === "ports") $variableSelect = getUhttpdPort();
+    elseif ($variableName === "lanRanges") $variableSelect = getLanRange();
+    elseif ($variableName === "pppoeRanges") $variableSelect = getPPPoERange();
+    elseif ($variableName === "hotspotRanges") $variableSelect = getHotspotRange();
+    elseif ($variableName === "zerotierRanges") $variableSelect = getZerotierRange();
+    elseif ($variableName === "tailscaleRanges") $variableSelect = getTailscaleRange();
+    elseif ($variableName === "host") $variableSelect = $_SERVER['HTTP_HOST'];
+    elseif ($variableName === "uri") $variableSelect  = $_SERVER['REQUEST_URI'] ?? '/';
+    elseif ($variableName === "docRoot") $variableSelect = $_SERVER['DOCUMENT_ROOT'];
+    elseif ($variableName === "path") $variableSelect = $_SERVER['DOCUMENT_ROOT'] . $_SERVER['REQUEST_URI'];
+    else return null;
+
+    return $variableSelect;
+}
+
+if (getVariable("ip") <= 0) {
+    header("HTTP/1.1 400 Bad Request");
+    echo "<h1>Bad Request</h1>";
+    echo "You IP address invalid on this server.";
+    exit;
+} elseif (substrStrlen(getVariable("uri"), "/img/logo/radmon-logo.png") && !empty($_SERVER['REDIRECT_STATUS'])) {
+    $file = __DIR__ . "/../RadMonv2/img/logo/radmon-logo.png";
+    $status = intval($_SERVER['REDIRECT_STATUS']);
+
+    if (file_exists($file) && $status === 404) {
+        $mime = mime_content_type($file);
+        header("Content-Type: $mime");
+        header("Content-Length: " . filesize($file));
+        readfile($file);
+        exit;
+    } else {
+        if (!empty(getVariable("lanRanges")) && getVariable("ip") >= getVariable("lanRanges")['start'] && getVariable("ip") <= getVariable("lanRanges")['end']) {
+            redirectToMainPort(getVariable("host"), getVariable("ports"), getVariable("uri"));
+            exit;
+        }
+    }
+} elseif (getAcmtStatus() && getWListedIp()) {
+    redirectToMainPort(getVariable("host"), getVariable("ports"), getVariable("uri"));
+    exit;
+} elseif (getAcmtStatus() && getWListedMac()) {
+    redirectToMainPort(getVariable("host"), getVariable("ports"), getVariable("uri"));
+    exit;
+} elseif (!empty(getVariable("pppoeRanges")) && getVariable("ip") >= getVariable("pppoeRanges")['start'] && getVariable("ip") <= getVariable("pppoeRanges")['end']) {
+    $ip = getUserIp('ip');
+    $mac = getIpMac('getMAC', $ip);
+    $parsed = parse_url(getVariable("uri"));
+    $path = $parsed['path'] ?? '/';
+    $pathNormalized = rtrim($path, '/');
+
+    $dir = "pppoepages";
+    $routes = [
+        'home'    => $dir . "/home.php",
+        'package' => $dir . "/package.php",
+        'faq'     => $dir . "/faq.php",
+        'contact' => $dir . "/contact.php",
+        'message' => $dir . "/message.php",
+    ];
+
+    if (!empty($_SERVER['REDIRECT_STATUS']) && intval($_SERVER['REDIRECT_STATUS']) === 404) {
+        $segments = getSegmentsAfterPPP($path);
+
+        if (empty($segments)) {
+            header("HTTP/1.1 301 Moved Permanently");
+            header("Location: /ppp/home");
+            exit;
+        }
+
+        $first = $segments[0];
+        $extra = array_slice($segments, 1);
+
+        if (isset($routes[$first]) && file_exists($routes[$first]) && empty($extra)) {
+            include $routes[$first];
+            exit;
+        }
+
+        header("HTTP/1.1 301 Moved Permanently");
+        header("Location: /ppp/home");
+        exit;
+
+    } else {
+        if ($path === '/' || $path === '') {
+            header("HTTP/1.1 301 Moved Permanently");
+            header("Location: /ppp/home");
+            exit;
+        }
+    }
+} elseif (!empty(getVariable("hotspotRanges")) && getVariable("ip") >= getVariable("hotspotRanges")['start'] && getVariable("ip") <= getVariable("hotspotRanges")['end']) {
+    header("HTTP/1.1 301 Moved Permanently");
+    header("Location: http://10.10.10.1:3990");
+    exit;
+} elseif (!empty(getVariable("lanRanges")) && getVariable("ip") >= getVariable("lanRanges")['start'] && getVariable("ip") <= getVariable("lanRanges")['end']) {
+    redirectToMainPort(getVariable("host"), getVariable("ports"), getVariable("uri"));
+    exit;
+} else {
+    foreach (getVariable("zerotierRanges") as $range) {
+        if (getVariable("ip") >= $range['start'] && getVariable("ip") <= $range['end']) {
+            redirectToMainPort(getVariable("host"), getVariable("ports"), getVariable("uri"));
+            exit;
+        }
+    }
+
+    foreach (getVariable("tailscaleRanges") as $range) {
+        if (getVariable("ip") >= $range['start'] && getVariable("ip") <= $range['end']) {
+            redirectToMainPort(getVariable("host"), getVariable("ports"), getVariable("uri"));
+            exit;
+        }
+    }
+}
+
+header("HTTP/1.1 403 Forbidden");
+echo "<h1>Forbidden</h1>";
+echo "You don't have permission to access " . htmlspecialchars(getVariable("uri"), ENT_QUOTES, 'UTF-8') . " on this server.";
+
+?>
+EOF
+}
+
+ACTION="$1"
+INIT_NAME="access-management"
+INIT_FILE="/etc/init.d/$INIT_NAME"
+LUCI_APP="luci-app-$INIT_NAME"
+APP_NAME="acmt"
+CTRL_NAME="acmt-ctrl"
+APP_VERSION="1.1"
+APP_DIR="/usr/bin"
+CTRL_DIR="/usr/bin"
+RUN_DIR="/tmp/run/acmt"
+CTRL_FILE="$APP_DIR/$CTRL_NAME"
+PID_FILE="$RUN_DIR/$APP_NAME.pid"
+LOG_FILE="/tmp/log/$APP_NAME.log"
+CTRL_PID_FILE="$RUN_DIR/${APP_NAME}_ctrl.pid"
+NFT_FILE="$RUN_DIR/$APP_NAME.nft"
+UCI_CONFIG="$(uci show "$APP_NAME")"
+UCI_HASH="$(echo "$UCI_CONFIG" | md5sum | awk '{print $1}')"
+UCI_HASH_FILE="$RUN_DIR/${APP_NAME}_uci.hash"
+CONF_FILE="$RUN_DIR/$APP_NAME.conf"
+
+if [ ! -t 0 ] && [ "$(basename $0)" = "$APP_NAME" ] && [ "$ACTION" = "start" ]; then
+    mkdir -p "$RUN_DIR"
+    generate_conf "$CONF_FILE"
+fi
+
+[ -f "$CONF_FILE" ] && . "$CONF_FILE"
+[ "$IP_WL_ENABLED" != "1" ] && IP_WHITELIST=""
+[ "$MAC_WL_ENABLED" != "1" ] && MAC_WHITELIST=""
+
+PREV_HASH=""
+[ -f "$UCI_HASH_FILE" ] && PREV_HASH="$(cat "$UCI_HASH_FILE")"
+
+if [ -f "$PID_FILE" ]; then
+    PID="$(cat "$PID_FILE")"
+else
+    PID="$(ps w | grep '[a]cmt start' | grep -v 'acmt-ctrl' | awk '{print $1}' | head -n1)"
+fi
+
+if [ -f "$CTRL_PID_FILE" ]; then
+    CTRL_PID="$(cat "$CTRL_PID_FILE")"
+else
+    CTRL_PID="$(ps w | grep '[a]cmt-ctrl up' | awk '{print $1}' | head -n1)"
+fi
+
+log_once() {
+    local message=$1
+    local action=$2
+    local escaped=$(printf '%s' "$message" | sed 's/[]\/$*.^[]/\\&/g')
+    
+    [ -f "$LOG_FILE" ] && sed -i "/$escaped/d" "$LOG_FILE"
+    
+    if [ -s "$LOG_FILE" ]; then
+        local last_line=$(sed -n '$p' "$LOG_FILE")
+        [ -n "$last_line" ] && [ "$last_line" != "" ] && [ "$action" != "not_a_new_entry_line" ] && echo "" >> "$LOG_FILE"
+    fi
+    
+    echo "$(date '+%a %b %d %H:%M:%S %Y') ($message)" >> "$LOG_FILE"
+}
+
+clear_resources() {
+    local mes1=$1
+    
+    for file in $RUN_DIR/acmt_*_*.hash; do
+        [ -f "$file" ] && rm -f "$file" && echo "$(date '+%a %b %d %H:%M:%S %Y') (Deleting $(basename $file) files...)" >> "$LOG_FILE"
+    done
+    
+    [ -f "$PID_FILE" ] && rm -rf "$PID_FILE" && echo "$(date '+%a %b %d %H:%M:%S %Y') (Deleting ACMT PID files...)" >> "$LOG_FILE"
+    [ -f "$CTRL_PID_FILE" ] && rm -rf "$CTRL_PID_FILE" && echo "$(date '+%a %b %d %H:%M:%S %Y') (Deleting CTRL PID files...)" >> "$LOG_FILE"
+    [ -f "$UCI_HASH_FILE" ] && rm -rf "$UCI_HASH_FILE" && echo "$(date '+%a %b %d %H:%M:%S %Y') (Deleting UCI_HASH files...)" >> "$LOG_FILE"
+    [ -f "$NFT_FILE" ] && rm -rf "$NFT_FILE" && echo "$(date '+%a %b %d %H:%M:%S %Y') (Deleting NFT files...)" >> "$LOG_FILE"
+    [ "$mes1" != "no_conf" ] && [ -f "$CONF_FILE" ] && rm -rf "$CONF_FILE" && echo "$(date '+%a %b %d %H:%M:%S %Y') (Deleting CONF files...)" >> "$LOG_FILE"
+}
+
+func_nft_del() {
+    if nft list table inet acmt >/dev/null 2>&1; then
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (Removing nftables firewall...)" >> "$LOG_FILE"
+        nft delete table inet acmt
+    fi
+}
+
+func_kill_pid() {
+    local PID CTRL_PID
+    
+    if [ -f "$PID_FILE" ]; then
+        PID="$(cat "$PID_FILE")"
+    else
+        PID="$(ps w | grep '[a]cmt start' | grep -v 'acmt-ctrl' | awk '{print $1}' | head -n1)"
+    fi
+    
+    if [ -f "$CTRL_PID_FILE" ]; then
+        CTRL_PID="$(cat "$CTRL_PID_FILE")"
+    else
+        CTRL_PID="$(ps w | grep '[a]cmt-ctrl up' | awk '{print $1}' | head -n1)"
+    fi
+    
+    if [ -n "$PID" ] && kill -0 "$PID"; then
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (killed ACMT [PID: $PID])" >> "$LOG_FILE"
+        kill "$PID"
+    fi
+    
+    if [ -n "$CTRL_PID" ] && kill -0 "$CTRL_PID"; then
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (killed CTRL [PID: $CTRL_PID])" >> "$LOG_FILE"
+        kill "$CTRL_PID"
+    fi
+}
+
+run_progress() {
+    local command="$1"
+    local label="$2"
+    local funcAction="$3"
+    echo -ne "\e[33m$label\e[0m\n"
+
+    (eval "$command") &
+    pid=$!
+
+    local spin='-\|/'
+    local i=0
+    local percent=0
+
+    while kill -0 "$pid" 2>/dev/null; do
+        percent=$(( (percent + 2) % 100 ))
+        i=$(( (i + 1) % 4 ))
+        printf "\r\e[36m[%s] $label... %3d%%\e[0m" "${spin:$i:1}" "$percent"
+        read -t 0.1 <> <(:) || :
+    done
+
+    if [ -n "$funcAction" ];then
+        if [ "$funcAction" = "generate_acmt_config" ]; then
+            generate_acmt_config
+        fi
+        if [ "$funcAction" = "generate_uhttpd_config" ]; then
+            generate_uhttpd_config
+        fi
+        if [ "$funcAction" = "generate_uhttpd_config_default" ]; then
+            generate_uhttpd_config_default
+        fi
+        if [ "$funcAction" = "generate_users_index" ]; then
+            generate_users_index
+        fi
+    fi
+    
+    printf "\r\e[32m[SUCCESS] $label ✓ 100%%\e[0m\n"
+    return
+}
+
+if [ "$0" != "$APP_DIR/$(basename $0)" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Invalid app file location)" >> "$LOG_FILE"
+    echo "⚠️  Invalid app file location."
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+fi
+
+if [ "$0" != "$CTRL_DIR/$(basename $0)" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Invalid ctrl file location)" >> "$LOG_FILE"
+    echo "⚠️  Invalid ctrl file location."
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+fi
+
+if [ "$(basename $0)" != "$APP_NAME" ] && [ "$(basename $0)" != "$CTRL_NAME" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Invalid path file name)" >> "$LOG_FILE"
+    echo "⚠️  Invalid path file name."
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+fi
+
+if [ "$(basename $0)" = "$CTRL_NAME" ]; then
+    [ "$ACTION" != "up" ] && exit 0
+    
+    if [ -t 0 ]; then
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Command not available)" >> "$LOG_FILE"
+        echo "⚠️  Command not available."
+        show_help
+        exit 1
+    fi
+    
+    [ "$CTRL_PID" = "$$" ] && CTRL_PID=""
+    if [ -n "$CTRL_PID" ] && kill -0 "$CTRL_PID"; then
+        exit 0
+    else
+        echo $$ > "$CTRL_PID_FILE"
+        echo " " >> "$LOG_FILE"
+        
+        if [ -f "$CTRL_PID_FILE" ]; then
+            CTRL_PID="$(cat "$CTRL_PID_FILE")"
+        else
+            CTRL_PID="$(ps w | grep '[a]cmt-ctrl up' | awk '{print $1}' | head -n1)"
+        fi
+        
+        if [ -n "$CTRL_PID" ] && kill -0 "$CTRL_PID"; then
+            echo "$(date '+%a %b %d %H:%M:%S %Y') (CTRL 𝗿𝘂𝗻𝗻𝗶𝗻𝗴 > to APP Process [loop in $CTRL_LOOP seconds])" >> "$LOG_FILE"
+        fi
+        
+        while true; do
+            if ps | grep -E '[a]cmt-ctrl up' | grep -vw $$; then
+                sleep 1
+                continue
+            fi
+            
+            PREV_HASH=""
+            [ -f "$UCI_HASH_FILE" ] && PREV_HASH="$(cat "$UCI_HASH_FILE")"
+            UCI_CONFIG="$(uci show "$APP_NAME")"
+            UCI_HASH="$(echo "$UCI_CONFIG" | md5sum | awk '{print $1}')"
+            
+            if [ "$UCI_HASH" != "$PREV_HASH" ]; then
+                sleep 5
+                continue
+            fi
+            
+            if [ -z "$PID" ] || ! kill -0 "$PID" >/dev/null 2>&1; then
+                echo " " >> "$LOG_FILE"
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (ACMT 𝗧𝗲𝗿𝗺𝗶𝗻𝗮𝘁𝗲𝗱!)" >> "$LOG_FILE"
+                "$APP_NAME" stop >/dev/null 2>> "$LOG_FILE"
+                break
+            fi
+            
+            sleep "$CTRL_LOOP"
+        done
+        
+        exit 0
+    fi
+fi
+
+if [ ! -f "$CTRL_FILE" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Ctrl file not found)" >> "$LOG_FILE"
+    echo "⚠️  Ctrl file not found."
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+fi
+
+if [ ! -f "$INIT_FILE" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Init file not found)" >> "$LOG_FILE"
+    echo "⚠️  Init file not found."
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+fi
+
+[ "$(basename $0)" != "$APP_NAME" ] && exit 0
+
+if [ -z "$ACTION" ]; then
+    show_help "⚠️  The command does not exist."
+    exit 1
+elif [ "$ACTION" != "start" ] && [ "$ACTION" != "stop" ] && \
+     [ "$ACTION" != "restart" ] && [ "$ACTION" != "reload" ] && \
+     [ "$ACTION" != "status" ] && [ "$ACTION" != "-v" ] && \
+     [ "$ACTION" != "--version" ] && [ "$ACTION" != "-h" ] && \
+     [ "$ACTION" != "--help" ] && [ "$ACTION" != "-i" ] && \
+     [ "$ACTION" != "--info" ] && [ "$ACTION" != "--reset" ] && \
+     [ "$ACTION" != "--uninstall" ]; then
+    show_help "⚠️  Command not available."
+    exit 1
+fi
+
+if [ "$ACTION" = "-v" ] || [ "$ACTION" = "--version" ]; then
+    PKG_INFO="$(opkg status "$LUCI_APP")"
+    LUCI_APP_VERSION=""
+    echo "$PKG_INFO" | grep -Eq '^Status: install (user|ok) installed' && \
+    LUCI_APP_VERSION="$(echo "$PKG_INFO" | grep '^Version:' | awk '{print $2}')"
+    echo "$LUCI_APP version $LUCI_APP_VERSION - $APP_NAME version $APP_VERSION (use $APP_NAME --help to see a list of commands)"
+    exit 0
+fi
+
+if [ "$ACTION" = "-h" ] || [ "$ACTION" = "--help" ]; then
+    show_help
+    exit 0
+fi
+
+if [ "$ACTION" = "-i" ] || [ "$ACTION" = "--info" ]; then
+    show_info
+    exit 0
+fi
+
+if [ "$ACTION" = "--reset" ]; then
+    read -p "Do you want to continue the reset? [y/n]: " read_input
+    
+    echo ""
+    
+    if [ "$read_input" != "y" ] && [ "$read_input" != "Y" ] && \
+       [ "$read_input" != "yes" ] && [ "$read_input" != "YES" ]; then
+        echo "The reset process is cancelled"
+        exit 1
+    fi
+    
+    echo "" >> "$LOG_FILE"
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (Processing Reset Access Management)" >> "$LOG_FILE"
+    echo -e "\r\e[36mProcessing Reset Access Management\e[0m"
+    echo ""
+    
+    if run_progress "sleep 3 && [ -f /etc/config/acmt ]" "Checking acmt configuration"; then
+        run_progress "sleep 3 && [ -f /etc/config/acmt ] && rm -rf /etc/config/acmt" "Cleaning up acmt configuration"
+    fi
+    
+    if run_progress "sleep 3 && [ -f /etc/config/uhttpd ]" "Checking uhttpd configuration"; then
+        run_progress "sleep 3 && [ -f /etc/config/uhttpd ] && rm -rf /etc/config/uhttpd" "Cleaning up uhttpd configuration"
+    fi
+    
+    run_progress "sleep 3" "Generate acmt configuration" "generate_acmt_config"
+    run_progress "sleep 3" "Generate uhttpd configuration" "generate_uhttpd_config"
+    run_progress "sleep 3" "Generate users index.php file" "generate_users_index"
+    
+    if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+        func_nft_del
+        clear_resources
+        func_kill_pid
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    fi
+    
+    run_progress "sleep 1 && service uhttpd restart" "Restarting uHTTPd"
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (Reset Access Management Complete)" >> "$LOG_FILE"
+    echo ""
+    echo -e "\r\e[36mReset Access Management Complete ✓\e[0m"
+    echo ""
+    exit 0
+fi
+
+if [ "$ACTION" = "--uninstall" ]; then
+    read -p "Do you want to proceed with the uninstallation? [y/n]: " read_input
+    
+    echo ""
+    
+    if [ "$read_input" != "y" ] && [ "$read_input" != "Y" ] && \
+       [ "$read_input" != "yes" ] && [ "$read_input" != "YES" ]; then
+        echo "The uninstall process is cancelled"
+        exit 1
+    fi
+    
+    if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+        func_nft_del
+        clear_resources
+        func_kill_pid
+    fi
+    
+    [ -d /tmp/run/acmt ] && rm -r /tmp/run/acmt
+    [ -f "$LOG_FILE" ] && rm -rf "$LOG_FILE"
+    
+    echo ""
+    echo -e "\\n\\e[36mProcessing Uninstall Access Management\\e[0m\\n"
+    
+    if run_progress "sleep 3 && [ -f /etc/config/acmt ]" "Checking acmt configuration"; then
+        run_progress "sleep 3 && [ -f /etc/config/acmt ] && rm -rf /etc/config/acmt" "Cleaning up acmt configuration"
+    fi
+    
+    if run_progress "sleep 3 && [ -f /etc/config/uhttpd ]" "Checking uhttpd configuration"; then
+        run_progress "sleep 3 && [ -f /etc/config/uhttpd ] && rm -rf /etc/config/uhttpd" "Cleaning up uhttpd configuration"
+    fi
+    
+    if run_progress "sleep 3 && [ -f /usr/bin/acmt-ctrl ]" "Checking acmt-ctrl script"; then
+        run_progress "sleep 3 && [ -f /usr/bin/acmt-ctrl ] && rm -rf /usr/bin/acmt-ctrl" "Cleaning up acmt-ctrl script"
+    fi
+    
+    if run_progress "sleep 3 && [ -f /usr/bin/acmt ]" "Checking acmt script"; then
+        run_progress "sleep 3 && [ -f /usr/bin/acmt ] && rm -rf /usr/bin/acmt" "Cleaning up acmt script"
+    fi
+    
+    if run_progress "sleep 3 && [ -d /www/users ]" "Checking additional resources"; then
+        run_progress "sleep 3 && [ -d /www/users ] && rm -r /www/users" "Cleaning up additional resources"
+    fi
+    
+    run_progress "sleep 3 && opkg status $LUCI_APP | grep -Eq '^Status: install (user|ok) installed' && opkg remove $LUCI_APP >/dev/null" "Deleting the LuCi App"
+    
+    run_progress "sleep 3" "Generate uhttpd configuration default" "generate_uhttpd_config_default"
+    run_progress "sleep 1 && service uhttpd restart" "Restarting uHTTPd"
+    echo -e "\\n\\e[36mUninstall Access Management Complete ✓\\e[0m\\n"
+    echo -e "\\e[35mPlease open a new tab to log back into LuCi\\e[0m\\n"
+    echo -e "\\e[34mThank you for using Access Management :)\\e[0m\\n"
+    exit 0
+fi
+
+if [ "$ACTION" = "status" ]; then
+    if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE" && nft list chain inet acmt input >/dev/null 2>&1; then
+        echo -e "\e[32mRUNNING\e[0m (\e[32mPID: $PID\e[0m)"
+        exit 0
+    elif [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+        echo -e "\e[32mRUNNING\e[0m (\e[32mPID: $PID\e[0m)"
+        echo -e "\e[1;34mMesssage\e[0m (⚠️ \e[33mNFT NOT FOUND\e[0m)"
+        exit 0
+    else
+        echo -e "\e[31mNOT RUNNING\e[0m"
+        exit 1
+    fi
+fi
+
+if [ "$ACTION" = "stop" ]; then
+    echo "Stoping $APP_NAME..."
+    echo " " >> "$LOG_FILE"
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 0
+fi
+
+if [ "$ACTION" = "reload" ]; then
+    echo "Reloading $APP_NAME..."
+    ENABLED="$(uci get acmt.main.enabled)"
+    if [ "$UCI_HASH" != "$PREV_HASH" ] && [ "$ENABLED" = "1" ]; then
+        if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+            "$APP_NAME" stop >/dev/null 2>> "$LOG_FILE"
+            sleep 2
+            "$APP_NAME" start >/dev/null 2>> "$LOG_FILE"
+        else
+            "$APP_NAME" start >/dev/null 2>> "$LOG_FILE"
+        fi
+    elif [ "$UCI_HASH" != "$PREV_HASH" ] && [ "$ENABLED" != "1" ]; then
+        if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+            "$APP_NAME" stop >/dev/null 2>> "$LOG_FILE"
+        else
+            echo "$APP_NAME is already stopped"
+        fi
+    elif [ "$ENABLED" = "1" ]; then
+        if [ -z "$PID" ] || ! kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+            "$APP_NAME" start >/dev/null 2>> "$LOG_FILE"
+        else
+            echo "$APP_NAME is already running"
+        fi
+    else
+        if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+            "$APP_NAME" stop >/dev/null 2>> "$LOG_FILE"
+        else
+            echo "$APP_NAME is already stopped"
+        fi
+    fi
+    exit 0
+fi
+
+if [ "$ACTION" = "restart" ]; then
+    echo "Restarting $APP_NAME..."
+    if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+        "$APP_NAME" stop >/dev/null 2>&1
+        sleep 2
+        "$APP_NAME" start >/dev/null 2>&1
+    else
+        "$APP_NAME" start >/dev/null 2>&1
+    fi
+    exit 0
+fi
+
+if [ -t 0 ] && [ "$(basename $0)" = "$APP_NAME" ] && [ "$ACTION" = "start" ]; then
+    [ "$PID" = "$$" ] && PID=""
+    if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+        echo "$APP_NAME is already running"
+    else
+        echo "Starting $APP_NAME..."
+        nohup "$APP_NAME" start >/dev/null 2>> "$LOG_FILE" &
+    fi
+    exit 0
+fi
+
+if [ -z "$UCI_CONFIG" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Config file not found. Please check again)" >> "$LOG_FILE"
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+elif [ -z "$ENABLED" ] && [ -z "HS_ENABLED" ] && \
+     [ -z "PPP_ENABLED" ] && [ -z "$PORTS" ] && \
+     [ -z "IP_WL_ENABLED" ] && [ -z "MAC_WL_ENABLED" ] && \
+     [ -z "$IP_WHITELIST" ] && [ -z "$MAC_WHITELIST" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Invalid config. Please check again)" >> "$LOG_FILE"
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+elif [ -z "$DB_SERVER" ] || [ -z "$MYSQL_PORT" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASS" ] || [ -z "$DB_NAME" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Unknown or invalid db variable. Please check again)" >> "$LOG_FILE"
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+fi
+
+if [ -z "$ENABLED" ] || [ "$ENABLED" = "0" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ uci config is not enabled)" >> "$LOG_FILE"
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+fi
+
+get_latest_ip_by_mac() {
+    local mac="$1"
+    mac=$(echo "$mac" | tr '-' ':' | tr 'A-F' 'a-f')
+    mysql -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" -N -e "
+        SELECT framedipaddress
+        FROM radacct
+        WHERE acctstoptime IS NULL
+        AND REPLACE(callingstationid, '-', ':') = REPLACE('$mac', '-', ':')
+        ORDER BY radacctid DESC LIMIT 1;
+    "
+}
+
+get_old_ips_by_mac() {
+    local mac="$1"
+    mac=$(echo "$mac" | tr '-' ':' | tr 'A-F' 'a-f')
+
+    local exclude_ips=()
+
+    IFS=',' read -ra WHITELISTED_MACS <<< "$MAC_WHITELIST"
+    for m in "${WHITELISTED_MACS[@]}"; do
+        [ "$m" = "$mac" ] && continue
+        other_ip=$(get_latest_ip_by_mac "$m")
+        [ -n "$other_ip" ] && exclude_ips+=("$other_ip")
+    done
+
+    if [ -n "$IP_WHITELIST" ]; then
+        IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+        for ip in "${IP_LIST[@]}"; do
+            exclude_ips+=("$ip")
+        done
+    fi
+
+    mysql -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" -N -e "
+        SELECT DISTINCT framedipaddress
+        FROM radacct
+        WHERE REPLACE(callingstationid, '-', ':') = REPLACE('$mac', '-', ':')
+        AND framedipaddress IS NOT NULL;
+    " | while read -r ip; do
+        skip=false
+        for ex in "${exclude_ips[@]}"; do
+            [ "$ip" = "$ex" ] && skip=true && break
+        done
+        $skip || echo "$ip"
+    done
+}
+
+delete_nft_rule_for_ip() {
+    local pid_curr="$1"
+    local uci_hash="$2"
+    local ip="$3"
+    local mac="$4"
+    local nft_state nft_accept_match nft_hash nft_line handle
+    
+    if nft -a list chain inet acmt input | grep -q "ip saddr $ip"; then
+        while read -r LINE; do
+            handle=$(echo "$LINE" | grep -o 'handle [0-9]\+' | awk '{print $2}')
+            if [ -n "$handle" ]; then
+                nft_state=$(nft -a list chain inet acmt input)
+                nft_accept_match=$(echo "$nft_state" | grep "accept" | grep "$ip")
+                nft_hash=$(echo "$nft_accept_match" | md5sum | awk '{print $1}')
+                nft_hash_file="$RUN_DIR/acmt_mac_$mac.hash"
+                nft_line=$(echo "$nft_accept_match" | perl -e '
+                    my $s = <>;
+                    $s =~ s/^\s+//;
+                    my @saved = ();
+                    $s =~ s/{([^}]*)}/push(@saved, $1), "{__PLACEHOLDER__" . $#saved . "}"/ge;
+                    $s =~ s/ /_/g;
+                    $s =~ s/{__PLACEHOLDER__(\d+)}/"{" . $saved[$1] . "}"/ge;
+                    print $s;
+                ')
+                log_once "PID_CURR:$pid_curr)_(UCI_CURR:$uci_hash)_(NFT_CURR:$nft_hash)_(Processing_update_MAC_WhiteList:$mac)_(with IP:$ip)_(Delete_Rules:$nft_line" "not_a_new_entry_line"
+                
+                nft delete rule inet acmt input handle "$handle"
+                
+                [ -f "$nft_hash_file" ] && rm -f "$nft_hash_file" && log_once "PID_CURR:$pid_curr)_(UCI_CURR:$uci_hash)_(NFT_CURR:$nft_hash)_(Deleting $(basename $nft_hash_file) files" "not_a_new_entry_line"
+            fi
+        done < <(nft -a list chain inet acmt input | grep -w "$ip")
+    fi
+}
+
+add_nft_rule_for_ip() {
+    local pid_curr="$1"
+    local uci_hash="$2"
+    local ip="$3"
+    local mac="$4"
+    local nft_state nft_accept_match nft_hash nft_line
+    
+    if ! nft -a list chain inet acmt input | grep -q "ip saddr $ip" && [[ "$ip" != $ABNORMAL_HS_IP && "$ip" != $ABNORMAL_PPP_IP ]]; then
+        nft insert rule inet acmt input ip saddr "$ip" tcp dport { $PORTS } accept
+        
+        nft_state=$(nft -a list chain inet acmt input)
+        nft_accept_match=$(echo "$nft_state" | grep "accept" | grep "$ip")
+        nft_hash=$(echo "$nft_accept_match" | md5sum | awk '{print $1}')
+        nft_hash_file="$RUN_DIR/acmt_mac_$mac.hash"
+        nft_line=$(echo "$nft_accept_match" | perl -e '
+            my $s = <>;
+            $s =~ s/^\s+//;
+            my @saved = ();
+            $s =~ s/{([^}]*)}/push(@saved, $1), "{__PLACEHOLDER__" . $#saved . "}"/ge;
+            $s =~ s/ /_/g;
+            $s =~ s/{__PLACEHOLDER__(\d+)}/"{" . $saved[$1] . "}"/ge;
+            print $s;
+        ')
+        log_once "PID_CURR:$pid_curr)_(UCI_CURR:$uci_hash)_(NFT_CURR:$nft_hash)_(Processing_update_MAC_WhiteList:$mac)_(with IP:$ip)_(Adding_Rules:$nft_line" "not_a_new_entry_line"
+        
+        echo "$nft_hash" > "$nft_hash_file" && log_once "PID_CURR:$pid_curr)_(UCI_CURR:$uci_hash)_(NFT_CURR:$nft_hash)_(Adding $(basename $nft_hash_file) files" "not_a_new_entry_line"
+    fi
+}
+
+abnormal_ip() {
+    local ip="$1"
+    echo "${ip%.*}.*"
+}
+
+get_hs_ip() {
+    local uamlisten hs_ip
+    
+    if [ "$HS_ENABLED" = "0" ] && [ -f /etc/config/chilli ]; then
+        uamlisten=$(awk '$1 == "option" && $2 == "uamlisten" {gsub("\x27", "", $3); print $3}' /etc/config/chilli)
+        if [ -n "$uamlisten" ]; then
+            hs_ip=$(abnormal_ip "$uamlisten")
+        fi
+    fi
+    
+    echo "$hs_ip"
+}
+
+get_ppp_ip() {
+    local localip ppp_ip
+    
+    if [ "$PPP_ENABLED" = "0" ] && [ -f /etc/config/pppoe ]; then
+        localip=$(awk '$1 == "option" && $2 == "localip" {gsub("\x27", "", $3); print $3}' /etc/config/pppoe)
+        if [ -n "$localip" ]; then
+            ppp_ip=$(abnormal_ip "$localip")
+        fi
+    fi
+    
+    echo "$ppp_ip"
+}
+
+normalize_ip() {
+    local ip="$1"
+    local dev mask base_ip
+    local IFS=.
+
+    dev=$(ip -o -f inet addr show | awk -v ip="$ip" \
+        '($4 ~ ip"/" || $5 ~ ip"/" || $4 == ip || $5 == ip) {print $2; exit}')
+
+    if [ -n "$dev" ]; then
+        mask=$(ip -o -f inet addr show dev "$dev" | awk -v ip="$ip" '
+            ($4 ~ ip"/" || $5 ~ ip"/" || $4 == ip || $5 == ip) {
+                split($4, a, "/"); if (a[2]) print a[2]; else print "24";
+            }')
+    else
+        mask="24"
+    fi
+
+    read -r o1 o2 o3 o4 <<< "$ip"
+
+    case "$mask" in
+        8)   base_ip="$o1.0.0.0";;
+        16)  base_ip="$o1.$o2.0.0";;
+        24)  base_ip="$o1.$o2.$o3.0";;
+        32)  base_ip="$o1.$o2.$o3.$o4";;
+        *)   base_ip=$(ipcalc -n "$ip/$mask" | awk -F= '/NETWORK/ {print $2}')
+             ;;
+    esac
+
+    echo "$base_ip/$mask"
+}
+
+get_subnets() {
+    local uamlisten localip subnet subnets
+    
+    if [ "$HS_ENABLED" = "1" ] && [ -f /etc/config/chilli ]; then
+        uamlisten=$(awk '$1 == "option" && $2 == "uamlisten" {gsub("\x27", "", $3); print $3}' /etc/config/chilli)
+        if [ -n "$uamlisten" ]; then
+            subnet=$(normalize_ip "$uamlisten")
+            subnets="$subnets $subnet"
+        fi
+    fi
+    
+    if [ "$PPP_ENABLED" = "1" ] && [ -f /etc/config/pppoe ]; then
+        localip=$(awk '$1 == "option" && $2 == "localip" {gsub("\x27", "", $3); print $3}' /etc/config/pppoe)
+        if [ -n "$localip" ]; then
+            subnet=$(normalize_ip "$localip")
+            subnets="$subnets $subnet"
+        fi
+    fi
+    
+    echo "$subnets"
+}
+
+ABNORMAL_HS_IP=$(get_hs_ip)
+ABNORMAL_PPP_IP=$(get_ppp_ip)
+SUBNETS=$(get_subnets)
+
+if [ -z "$SUBNETS" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ IP subnet not found. Please check the general setting of Hotspot User Blocker or PPPoE User Blocker)" >> "$LOG_FILE"
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+fi
+
+if [ -z "$PORTS" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Port is empty. Please fill in Ports Black List in general settings first)" >> "$LOG_FILE"
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+fi
+
+if [ "$ENABLED" != "1" ]; then
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ uci config is not enabled)" >> "$LOG_FILE"
+    func_nft_del
+    clear_resources
+    func_kill_pid
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+    exit 1
+else
+    update_mac_whitelist() {
+        local PID_CURR
+        
+        if [ -f "$PID_FILE" ]; then
+            PID_CURR="$(cat "$PID_FILE")"
+        else
+            PID_CURR="$(ps w | grep '[a]cmt start' | grep -v 'acmt-ctrl' | awk '{print $1}' | head -n1)"
+        fi
+        
+        local UCI_HASH=$(cat "$UCI_HASH_FILE")
+        
+        IFS=',' read -ra MAC_LIST <<< "$MAC_WHITELIST"
+        for MAC in "${MAC_LIST[@]}"; do
+            local LATEST_IP=$(get_latest_ip_by_mac "$MAC")
+            local OLD_IP=""
+            
+            for OLD_IP in $(get_old_ips_by_mac "$MAC"); do
+                [ -z "$OLD_IP" ] && continue
+                
+                local IP_MATCHED=false
+                if [ -n "$IP_WHITELIST" ]; then
+                    IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+                    for IPS in "${IP_LIST[@]}"; do
+                        if [ "$OLD_IP" = "$IPS" ]; then
+                            if [[ "$OLD_IP" == $ABNORMAL_HS_IP && "$OLD_IP" != $ABNORMAL_PPP_IP ]]; then
+                                log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$OLD_IP)_(update failed for delete rules, Hotspot Users Blocker is not enabled" "not_a_new_entry_line"
+                            elif [[ "$OLD_IP" == $ABNORMAL_PPP_IP && "$OLD_IP" != $ABNORMAL_HS_IP ]]; then
+                                log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$OLD_IP)_(update failed for delete rules, PPPoE Users Blocker is not enabled" "not_a_new_entry_line"
+                            else
+                                log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$OLD_IP)_(update rejected for delete rules, already running on IP WhiteList" "not_a_new_entry_line"
+                            fi
+                            
+                            IP_MATCHED=true
+                            break
+                        fi
+                    done
+                fi
+                
+                if [ "$IP_MATCHED" = false ] && nft -a list chain inet acmt input | grep -q "ip saddr $OLD_IP"; then
+                    if [[ "$LATEST_IP" == $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                        log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$OLD_IP)_(update failed for delete rules, Hotspot Users Blocker is not enabled" "not_a_new_entry_line"
+                    elif [[ "$LATEST_IP" == $ABNORMAL_PPP_IP && "$LATEST_IP" != $ABNORMAL_HS_IP ]]; then
+                        log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$OLD_IP)_(update failed for delete rules, PPPoE Users Blocker is not enabled" "not_a_new_entry_line"
+                    else
+                        delete_nft_rule_for_ip "$PID_CURR" "$UCI_HASH" "$OLD_IP" "$MAC"
+                        
+                        if ! nft -a list chain inet acmt input | grep -q "ip saddr $OLD_IP"; then
+                            log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$OLD_IP)_(update successfully processed for delete rules" "not_a_new_entry_line"
+                        else
+                            log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$OLD_IP)_(update failed for delete rules to process" "not_a_new_entry_line"
+                        fi
+                    fi
+                fi
+            done
+            
+            if [ -z "$LATEST_IP" ]; then
+                log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(update rejected, not active in the database)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                continue
+            fi
+            
+            local IP_MATCHED=false
+            if [ -n "$IP_WHITELIST" ]; then
+                IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+                for IPS in "${IP_LIST[@]}"; do
+                    if [ "$LATEST_IP" = "$IPS" ]; then
+                        if [[ "$LATEST_IP" == $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                            log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$LATEST_IP)_(update failed for adding rules, Hotspot Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                        elif [[ "$LATEST_IP" == $ABNORMAL_PPP_IP && "$LATEST_IP" != $ABNORMAL_HS_IP ]]; then
+                            log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$LATEST_IP)_(update failed for adding rules, PPPoE Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                        else
+                            if nft -a list chain inet acmt input | grep -q "ip saddr $LATEST_IP"; then
+                                log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(update rejected for adding rules, already running on IP WhiteList)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                            fi
+                        fi
+                        
+                        IP_MATCHED=true
+                        break
+                    fi
+                done
+            fi
+            
+            if [ "$IP_MATCHED" = false ] && ! nft -a list chain inet acmt input | grep -q "ip saddr $LATEST_IP"; then
+                if [[ "$LATEST_IP" == $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                    log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$LATEST_IP)_(update failed for adding rules, Hotspot Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                elif [[ "$LATEST_IP" == $ABNORMAL_PPP_IP && "$LATEST_IP" != $ABNORMAL_HS_IP ]]; then
+                    log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$LATEST_IP)_(update failed for adding rules, PPPoE Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                else
+                    add_nft_rule_for_ip "$PID_CURR" "$UCI_HASH" "$LATEST_IP" "$MAC"
+                    
+                    if nft -a list chain inet acmt input | grep -q "ip saddr $LATEST_IP"; then
+                        log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(update successfully processed for adding rules)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                    else
+                        log_once "PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with_IP:$LATEST_IP)_(update failed for adding rules to process)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴" "not_a_new_entry_line"
+                    fi
+                fi
+            fi
+        done
+        return 0
+    }
+    
+    [ -t 0 ] && exit 1
+    
+    [ "$ACTION" != "start" ] && exit 1
+    
+    [ "$UCI_HASH" = "$PREV_HASH" ] && exit 0
+    
+    clear_resources "no_conf"
+    echo $$ > "$PID_FILE"
+    echo "$UCI_HASH" > "$UCI_HASH_FILE"
+    
+    echo " " >> "$LOG_FILE"
+    echo " " >> "$LOG_FILE"
+    echo "$(date '+%a %b %d %H:%M:%S %Y') (APP Starting [PID: $$])" >> "$LOG_FILE"
+    
+    if ! (echo > /dev/tcp/$DB_SERVER/$MYSQL_PORT) >/dev/null 2>&1; then
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ MySQL port '$MYSQL_PORT' on '$DB_SERVER' is not accessible)" >> "$LOG_FILE"
+        func_nft_del
+        clear_resources
+        func_kill_pid
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+        exit 1
+    else
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (MySQL port '$MYSQL_PORT' in '$DB_SERVER' is open)" >> "$LOG_FILE"
+    fi
+    
+    if ! mysql -h"$DB_SERVER" -P"$MYSQL_PORT" -u"$DB_USER" -p"$DB_PASS" -e "USE $DB_NAME;" >/dev/null 2>&1; then
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️ Connection failed. Check user, password, or database name!)" >> "$LOG_FILE"
+        func_nft_del
+        clear_resources
+        func_kill_pid
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (APP 𝗵𝗮𝘀 𝘀𝘁𝗼𝗽𝗽𝗲𝗱!)" >> "$LOG_FILE"
+        exit 1
+    else
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (Connection successful to database '$DB_NAME')" >> "$LOG_FILE"
+    fi
+    
+    if ! nft list table inet acmt >/dev/null 2>&1; then
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (Prepare nftables firewall)" >> "$LOG_FILE"
+        nft add table inet acmt
+    fi
+    
+    if nft list chain inet acmt input >/dev/null 2>&1; then
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (Setup advanced nftables firewall)" >> "$LOG_FILE"
+        nft delete chain inet acmt input
+        nft add chain inet acmt input { type filter hook input priority 0 \; }
+    else
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (Setup advanced nftables firewall)" >> "$LOG_FILE"
+        nft add chain inet acmt input { type filter hook input priority 0 \; }
+    fi
+    
+    echo " " >> "$LOG_FILE"
+    
+    if [ -f "$PID_FILE" ]; then
+        PID_CURR="$(cat "$PID_FILE")"
+    else
+        PID_CURR="$(ps w | grep '[a]cmt start' | grep -v 'acmt-ctrl' | awk '{print $1}' | head -n1)"
+    fi
+    
+    UCI_HASH=$(cat "$UCI_HASH_FILE")
+    
+    if [ -n "$IP_WHITELIST" ]; then
+        IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+        for IP in "${IP_LIST[@]}"; do
+            if ! nft -a list chain inet acmt input | grep -q "ip saddr $IP" && [[ "$IP" != $ABNORMAL_HS_IP && "$IP" != $ABNORMAL_PPP_IP ]]; then
+                nft add rule inet acmt input ip saddr "$IP" tcp dport { $PORTS } accept
+                
+                NFT_STATE=$(nft -a list chain inet acmt input)
+                NFT_ACCEPT_MATCH=$(echo "$NFT_STATE" | grep "accept" | grep "$IP")
+                NFT_HASH=$(echo "$NFT_ACCEPT_MATCH" | md5sum | awk '{print $1}')
+                NFT_HASH_FILE="$RUN_DIR/acmt_ip_$IP.hash"
+                NFT_LINE=$(echo "$NFT_ACCEPT_MATCH" | perl -e '
+                    my $s = <>;
+                    $s =~ s/^\s+//;
+                    my @saved = ();
+                    $s =~ s/{([^}]*)}/push(@saved, $1), "{__PLACEHOLDER__" . $#saved . "}"/ge;
+                    $s =~ s/ /_/g;
+                    $s =~ s/{__PLACEHOLDER__(\d+)}/"{" . $saved[$1] . "}"/ge;
+                    print $s;
+                ')
+                echo "$NFT_HASH" > "$NFT_HASH_FILE"
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(Processing_IP_WhiteList:$IP)_(Adding_Rules:$NFT_LINE)" >> "$LOG_FILE"
+            fi
+        done
+    fi
+    
+    if [ -n "$MAC_WHITELIST" ]; then
+        IFS=',' read -ra MAC_LIST <<< "$MAC_WHITELIST"
+        for MAC in "${MAC_LIST[@]}"; do
+            LATEST_IP=$(get_latest_ip_by_mac "$MAC")
+            [ -z "$LATEST_IP" ] && continue
+            
+            IP_MATCHED=false
+            if [ -n "$IP_WHITELIST" ]; then
+                IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+                for IPS in "${IP_LIST[@]}"; do
+                    if [ "$LATEST_IP" = "$IPS" ]; then
+                        IP_MATCHED=true
+                        break
+                    fi
+                done
+            fi
+            
+            if [ "$IP_MATCHED" = false ] && ! nft -a list chain inet acmt input | grep -q "ip saddr $LATEST_IP" && [[ "$LATEST_IP" != $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                nft add rule inet acmt input ip saddr "$LATEST_IP" tcp dport { $PORTS } accept
+                
+                NFT_STATE=$(nft -a list chain inet acmt input)
+                NFT_ACCEPT_MATCH=$(echo "$NFT_STATE" | grep "accept" | grep "$LATEST_IP")
+                NFT_HASH=$(echo "$NFT_ACCEPT_MATCH" | md5sum | awk '{print $1}')
+                NFT_HASH_FILE="$RUN_DIR/acmt_mac_$MAC.hash"
+                NFT_LINE=$(echo "$NFT_ACCEPT_MATCH" | perl -e '
+                    my $s = <>;
+                    $s =~ s/^\s+//;
+                    my @saved = ();
+                    $s =~ s/{([^}]*)}/push(@saved, $1), "{__PLACEHOLDER__" . $#saved . "}"/ge;
+                    $s =~ s/ /_/g;
+                    $s =~ s/{__PLACEHOLDER__(\d+)}/"{" . $saved[$1] . "}"/ge;
+                    print $s;
+                ')
+                echo "$NFT_HASH" > "$NFT_HASH_FILE"
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(Processing_MAC_WhiteList:$MAC)_(Adding_Rules:$NFT_LINE)" >> "$LOG_FILE"
+            fi
+        done
+    fi
+    
+    if [ -n "$SUBNETS" ]; then
+        for SUBNET in $SUBNETS; do
+            if ! nft -a list chain inet acmt input | grep -q "ip saddr $SUBNET"; then
+                nft add rule inet acmt input ip saddr "$SUBNET" tcp dport { $PORTS } reject
+                
+                NFT_STATE=$(nft -a list chain inet acmt input)
+                NFT_REJECT_MATCH=$(echo "$NFT_STATE" | grep "reject" | grep "$SUBNET")
+                NFT_HASH=$(echo "$NFT_REJECT_MATCH" | md5sum | awk '{print $1}')
+                SAFE_SUBNET=$(echo "$SUBNET" | sed 's|/|_|g')
+                NFT_HASH_FILE="$RUN_DIR/acmt_sub_${SAFE_SUBNET}.hash"
+                NFT_LINE=$(echo "$NFT_REJECT_MATCH" | perl -e '
+                    my $s = <>;
+                    $s =~ s/^\s+//;
+                    my @saved = ();
+                    $s =~ s/{([^}]*)}/push(@saved, $1), "{__PLACEHOLDER__" . $#saved . "}"/ge;
+                    $s =~ s/ /_/g;
+                    $s =~ s/{__PLACEHOLDER__(\d+)}/"{" . $saved[$1] . "}"/ge;
+                    print $s;
+                ')
+                echo "$NFT_HASH" > "$NFT_HASH_FILE"
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(Processing_IP_Subnets:$SUBNET)_(Adding_Rules:$NFT_LINE)" >> "$LOG_FILE"
+            fi
+        done
+    fi
+    
+    echo " " >> "$LOG_FILE"
+    
+    if [ -n "$IP_WHITELIST" ]; then
+        IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+        for IP in "${IP_LIST[@]}"; do
+            if nft -a list chain inet acmt input | grep -q "ip saddr $IP"; then
+                NFT_STATE=$(nft -a list chain inet acmt input)
+                NFT_ACCEPT_MATCH=$(echo "$NFT_STATE" | grep "accept" | grep "$IP")
+                NFT_HASH=$(echo "$NFT_ACCEPT_MATCH" | md5sum | awk '{print $1}')
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(IP_WhiteList:$IP)_(successfully processed)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+            elif [[ "$IP" == $ABNORMAL_HS_IP && "$IP" != $ABNORMAL_PPP_IP ]]; then
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(IP_WhiteList:$IP)_(Hotspot Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+            elif [[ "$IP" == $ABNORMAL_PPP_IP && "$IP" != $ABNORMAL_HS_IP ]]; then
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(IP_WhiteList:$IP)_(PPPoE Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+            else
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(IP_WhiteList:$IP)_(failed to process)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+            fi
+        done
+    fi
+    
+    if [ -n "$MAC_WHITELIST" ]; then
+        IFS=',' read -ra MAC_LIST <<< "$MAC_WHITELIST"
+        for MAC in "${MAC_LIST[@]}"; do
+            LATEST_IP=$(get_latest_ip_by_mac "$MAC")
+            if [ -z "$LATEST_IP" ]; then
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(not active in the database)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                continue
+            fi
+            
+            IP_MATCHED=false
+            if [ -n "$IP_WHITELIST" ]; then
+                IFS=',' read -ra IP_LIST <<< "$IP_WHITELIST"
+                for IPS in "${IP_LIST[@]}"; do
+                    if [ "$LATEST_IP" = "$IPS" ]; then
+                        if [[ "$LATEST_IP" == $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                            echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(Hotspot Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                        elif [[ "$LATEST_IP" == $ABNORMAL_PPP_IP && "$LATEST_IP" != $ABNORMAL_HS_IP ]]; then
+                            echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(PPPoE Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                        else
+                            if nft -a list chain inet acmt input | grep -q "ip saddr $LATEST_IP"; then
+                                NFT_STATE=$(nft -a list chain inet acmt input)
+                                NFT_ACCEPT_MATCH=$(echo "$NFT_STATE" | grep "accept" | grep "$LATEST_IP")
+                                NFT_HASH=$(echo "$NFT_ACCEPT_MATCH" | md5sum | awk '{print $1}')
+                                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(already running on IP WhiteList)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                            fi
+                        fi
+                        
+                        IP_MATCHED=true
+                        break
+                    fi
+                done
+            fi
+            
+            if [ "$IP_MATCHED" = false ]; then
+                if nft -a list chain inet acmt input | grep -q "ip saddr $LATEST_IP"; then
+                    NFT_STATE=$(nft -a list chain inet acmt input)
+                    NFT_ACCEPT_MATCH=$(echo "$NFT_STATE" | grep "accept" | grep "$LATEST_IP")
+                    NFT_HASH=$(echo "$NFT_ACCEPT_MATCH" | md5sum | awk '{print $1}')
+                    echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(successfully processed)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                elif [[ "$LATEST_IP" == $ABNORMAL_HS_IP && "$LATEST_IP" != $ABNORMAL_PPP_IP ]]; then
+                    echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(Hotspot Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                elif [[ "$LATEST_IP" == $ABNORMAL_PPP_IP && "$LATEST_IP" != $ABNORMAL_HS_IP ]]; then
+                    echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(PPPoE Users Blocker is not enabled)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                else
+                    echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(MAC_WhiteList:$MAC)_(with IP:$LATEST_IP)_(failed to process)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+                fi
+            fi
+        done
+    fi
+    
+    if [ -n "$SUBNETS" ]; then
+        for SUBNET in $SUBNETS; do
+            if nft -a list chain inet acmt input | grep -q "ip saddr $SUBNET"; then
+                NFT_STATE=$(nft -a list chain inet acmt input)
+                NFT_REJECT_MATCH=$(echo "$NFT_STATE" | grep "reject" | grep "$SUBNET")
+                NFT_HASH=$(echo "$NFT_REJECT_MATCH" | md5sum | awk '{print $1}')
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(NFT_CURR:$NFT_HASH)_(IP_Subnets:$SUBNET)_(successfully processed)_(𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+            else
+                echo "$(date '+%a %b %d %H:%M:%S %Y') (PID_CURR:$PID_CURR)_(UCI_CURR:$UCI_HASH)_(IP_Subnets:$SUBNET)_(failed to process)_(𝗻𝗼𝘁 𝗿𝘂𝗻𝗻𝗶𝗻𝗴)" >> "$LOG_FILE"
+            fi
+        done
+    fi
+    
+    nohup "$CTRL_NAME" up >/dev/null 2>> "$LOG_FILE" &
+    read -t 0.2 <> <(:) || :
+    
+    if [ -n "$PID_CURR" ] && kill -0 "$PID_CURR" >/dev/null 2>> "$LOG_FILE"; then
+        echo "$(date '+%a %b %d %H:%M:%S %Y') (ACMT 𝗿𝘂𝗻𝗻𝗶𝗻𝗴 > to Control the CTRL process and for MAC Whitelist updates [loop in $APP_LOOP seconds])" >> "$LOG_FILE"
+        echo "" >> "$LOG_FILE"
+    else
+        echo "" >> "$LOG_FILE"
+    fi
+    
+    INIT_PID="$(ps w | grep '[a]ccess-management' | awk '{print $1}' | head -n1)"
+    if [ -n "$INIT_PID" ] && kill -0 "$INIT_PID" >/dev/null 2>> "$LOG_FILE"; then
+        kill "$INIT_PID"
+    fi
+    
+    while true; do
+        if ps | grep -E '[a]cmt (start|stop|restart|reload)' | grep -vw $$; then
+            sleep 1
+            continue
+        fi
+        
+        PREV_HASH=""
+        [ -f "$UCI_HASH_FILE" ] && PREV_HASH="$(cat "$UCI_HASH_FILE")"
+        UCI_CONFIG="$(uci show "$APP_NAME")"
+        UCI_HASH="$(echo "$UCI_CONFIG" | md5sum | awk '{print $1}')"
+        
+        if [ "$UCI_HASH" != "$PREV_HASH" ]; then
+            sleep 5
+            continue
+        fi
+        
+        if [ -f "$CTRL_PID_FILE" ]; then
+            CTRL_PID="$(cat "$CTRL_PID_FILE")"
+        else
+            CTRL_PID="$(ps w | grep '[a]cmt-ctrl up' | awk '{print $1}' | head -n1)"
+        fi
+        
+        if [ -z "$CTRL_PID" ] || ! kill -0 "$CTRL_PID" >/dev/null 2>&1; then
+            echo " " >> "$LOG_FILE"
+            echo "$(date '+%a %b %d %H:%M:%S %Y') (CTRL 𝗧𝗲𝗿𝗺𝗶𝗻𝗮𝘁𝗲𝗱!)" >> "$LOG_FILE"
+            "$APP_NAME" stop >/dev/null 2>> "$LOG_FILE"
+            break
+        fi
+        
+        if [ "$MAC_WL_ENABLED" = "1" ] && [ -n "$MAC_WHITELIST" ]; then
+            update_mac_whitelist
+        fi
+        
+        if nft list table inet acmt 2>/dev/null; then
+            echo "$(nft list table inet acmt)" > "$NFT_FILE"
+        fi
+        
+        sleep "$APP_LOOP"
+    done
+    
+    exit 0
+fi
