@@ -1,0 +1,11 @@
+{
+	"luci-app-access-management": {
+		"description": "Grant UCI access for luci-app-access-management",
+		"read": {
+			"uci": [ "acmt", "uhttpd" ]
+		},
+		"write": {
+			"uci": [ "acmt", "uhttpd" ]
+		}
+	}
+}
