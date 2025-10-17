@@ -1,0 +1,16 @@
+
+config acmt 'main'
+	option enabled '0'
+	option ppp_enabled '1'
+	option hs_enabled '1'
+	option ip_wl_enabled '1'
+	option mac_wl_enabled '1'
+	option app_loop '15'
+	option ctrl_loop '3'
+	option db_server '127.0.0.1'
+	option mysql_port '3306'
+	option db_user 'radmon'
+	option db_pass 'radmon'
+	option db_name 'radmon'
+	option ports '9090,19999,22,3000,7681,8080,8443'
+
