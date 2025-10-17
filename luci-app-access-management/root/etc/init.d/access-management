@@ -1,0 +1,125 @@
+#!/bin/sh /etc/rc.common
+# Access Management LuCi sys init
+# License : (GPL-2.0) GNU General Public License Version 2
+# Created & developed by @Taufik <https://t.me/taufik_n_a>
+# © 2025 AlphaNetwork All rights reserved.
+
+START=60
+STOP=10
+
+EXTRA_COMMANDS="status reload"
+EXTRA_HELP="        status          Show App status"
+
+APP_NAME="acmt"
+APP_PATH="/usr/bin"
+APP_FILE="$APP_PATH/$APP_NAME"
+PID_FILE="/tmp/run/$APP_NAME/$APP_NAME.pid"
+LOG_FILE="/tmp/log/$APP_NAME.log"
+UCI_CONFIG="$(uci show "$APP_NAME")"
+UCI_HASH="$(echo "$UCI_CONFIG" | md5sum | awk '{print $1}')"
+UCI_HASH_FILE="/tmp/run/${APP_NAME}_uci.hash"
+
+start() {
+    if [ -f "$PID_FILE" ]; then
+        PID="$(cat "$PID_FILE")"
+    else
+        PID="$(ps w | grep '[a]cmt start' | grep -v 'acmt-ctrl' | awk '{print $1}' | head -n1)"
+    fi
+
+    if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+        echo "$APP_NAME is already running"
+        return 0
+    fi
+
+    ENABLED=$(uci get "$APP_NAME".main.enabled 2>> "$LOG_FILE")
+
+    if [ "$ENABLED" != "0" ] && [ "$ENABLED" = "1" ]; then
+        "$APP_FILE" start >/dev/null 2>> "$LOG_FILE" || echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️  ${APP_FILE} - [BINARY-FILE-ERROR])" >> "$LOG_FILE"
+    fi
+}
+
+stop() {
+    if [ -f "$PID_FILE" ]; then
+        PID="$(cat "$PID_FILE")"
+    else
+        PID="$(ps w | grep '[a]cmt start' | grep -v 'acmt-ctrl' | awk '{print $1}' | head -n1)"
+    fi
+
+    if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+        "$APP_FILE" stop >/dev/null 2>> "$LOG_FILE" || echo "$(date '+%a %b %d %H:%M:%S %Y') (⚠️  ${APP_FILE} - [BINARY-FILE-ERROR])" >> "$LOG_FILE"
+    else
+        echo "$APP_FILE is not running or already stopped."
+    fi
+}
+
+restart() {
+    echo "Restarting $APP_NAME..."
+    if [ -f "$PID_FILE" ]; then
+        PID="$(cat "$PID_FILE")"
+    else
+        PID="$(ps w | grep '[a]cmt start' | grep -v 'acmt-ctrl' | awk '{print $1}' | head -n1)"
+    fi
+
+    if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+        stop
+        sleep 2
+        start
+    else
+        start
+    fi
+}
+
+reload() {
+    echo "Reloading $APP_NAME..."
+    PREV_HASH=""
+    [ -f "$UCI_HASH_FILE" ] && PREV_HASH="$(cat "$UCI_HASH_FILE")"
+    ENABLED=$(uci get "$APP_NAME".main.enabled 2>> "$LOG_FILE")
+
+    if [ "$UCI_HASH" != "$PREV_HASH" ] && [ "$ENABLED" = "1" ]; then
+        if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+            stop
+            sleep 2
+            start
+        else
+            start
+        fi
+    elif [ "$UCI_HASH" != "$PREV_HASH" ] && [ "$ENABLED" != "1" ]; then
+        if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+            stop
+        else
+            echo "$APP_NAME is already stopped"
+        fi
+    elif [ "$ENABLED" = "1" ]; then
+        if [ -z "$PID" ] || ! kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+            start
+        else
+            echo "$APP_NAME is already running"
+        fi
+    else
+        if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+            stop
+        else
+            echo "$APP_NAME is already stopped"
+        fi
+    fi
+}
+
+status() {
+    if [ -f "$PID_FILE" ]; then
+        PID="$(cat "$PID_FILE")"
+    else
+        PID="$(ps w | grep '[a]cmt start' | grep -v 'acmt-ctrl' | awk '{print $1}' | head -n1)"
+    fi
+
+    if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE" && nft list chain inet acmt input >/dev/null 2>&1; then
+        echo -e "\e[32m$APP_NAME is RUNNING\e[0m (\e[32mPID: $PID\e[0m)"
+        return 0
+    elif [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>> "$LOG_FILE"; then
+        echo -e "\e[32m$APP_NAME is RUNNING\e[0m (\e[32mPID: $PID\e[0m)"
+        echo -e "\e[1;34mMesssage\e[0m (⚠️ \e[33mNFT NOT FOUND\e[0m)"
+        return 0
+    else
+        echo -e "\e[31m$APP_NAME NOT RUNNING\e[0m"
+        return 1
+    fi
+}
