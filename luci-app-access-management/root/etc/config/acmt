@@ -1,9 +1,0 @@
-
-config acmt 'main'
-	option enabled '0'
-	option ppp_enabled '1'
-	option hs_enabled '1'
-	option ip_wl_enabled '1'
-	option mac_wl_enabled '1'
-	option ports '22,8080,8443,7681,9090,3000,19999'
-
