@@ -9,7 +9,7 @@
 </div>
 <hr/>
 
-> ## NOTES.md
+> ## NOTES
 >
 > - Aplikasi ini ditujukan untuk firmware donasi Mutiara-Wrt.
 > - Sebelum melakukan instalasi, harap memiliki antarmuka LAN di menu antarmuka LuCi agar aplikasi dapat bekerja dengan baik.
