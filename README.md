@@ -26,8 +26,8 @@ Compatible
 Features
 ---
 > - Block Hotspot & PPPoE Users from accessing sensitive ports of RadMonv2 Gateway router.
-  - Hotspot Users Blocker.
-  - PPPoE Users Blocker.
+  - Hotspot Users Blocker (CoovaChilli).
+  - PPPoE Users Blocker (rp-pppoe-server).
   - Blacklist ports Automatically list active ports.
   - APP Loop to control the CTRL process and for MAC Whitelist updates in seconds.
   - CTRL Loop to control the APP process in seconds.
