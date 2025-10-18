@@ -88,7 +88,7 @@ run_progress "sleep 1 && chmod +x /etc/init.d/$INIT_NAME" "executable $INIT_NAME
 run_progress "sleep 1 && chmod 600 /etc/config/$APP_NAME" "executable $APP_NAME config"
 run_progress "sleep 1 && chmod 600 /etc/config/uhttpd" "executable uhttpd config"
 run_progress "sleep 1 && sed -i '/^\s*doc_root\s*=/ s/^/;/' /etc/php.ini" "edit php root configuration"
-run_progress "sleep 1 && cd /www/users && tar -xzf pppoepages.tar.gz && cd" "Extract pppoepages"
+run_progress "sleep 1 && cd /www/users && tar -xzf pppoepages.tar.gz && rm -rf pppoepages.tar.gz && cd" "Extract pppoepages"
 
 if [ "$LUCI_APP_VERSION" == "$APP_VERSION" ]; then
     echo -e "$GREEN"
