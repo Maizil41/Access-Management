@@ -1004,19 +1004,17 @@ fi
 
 if [ "$ACTION" = "--reset" ]; then
     read -p "Do you want to continue the reset? [y/n]: " read_input
-    
-    echo ""
-    
+        
     if [ "$read_input" != "y" ] && [ "$read_input" != "Y" ] && \
        [ "$read_input" != "yes" ] && [ "$read_input" != "YES" ]; then
+		echo ""
         echo "The reset process is cancelled"
         exit 1
     fi
     
     echo "" >> "$LOG_FILE"
     echo "$(date '+%a %b %d %H:%M:%S %Y') (Processing Reset Access Management)" >> "$LOG_FILE"
-    echo -e "\r\e[36mProcessing Reset Access Management\e[0m"
-    echo ""
+    echo -e "\\n\\e[36mProcessing Reset Access Management\\e[0m\\n"
     
     if run_progress "sleep 3 && [ -f /etc/config/acmt ]" "Checking acmt configuration"; then
         run_progress "sleep 3 && [ -f /etc/config/acmt ] && rm -rf /etc/config/acmt" "Cleaning up acmt configuration"
@@ -1039,19 +1037,16 @@ if [ "$ACTION" = "--reset" ]; then
     
     run_progress "sleep 1 && service uhttpd restart" "Restarting uHTTPd"
     echo "$(date '+%a %b %d %H:%M:%S %Y') (Reset Access Management Complete)" >> "$LOG_FILE"
-    echo ""
-    echo -e "\r\e[36mReset Access Management Complete ✓\e[0m"
-    echo ""
+    echo -e "\\n\\e[36mReset Access Management Complete ✓\\\e[0m\\n"
     exit 0
 fi
 
 if [ "$ACTION" = "--uninstall" ]; then
     read -p "Do you want to proceed with the uninstallation? [y/n]: " read_input
-    
-    echo ""
-    
+        
     if [ "$read_input" != "y" ] && [ "$read_input" != "Y" ] && \
        [ "$read_input" != "yes" ] && [ "$read_input" != "YES" ]; then
+		echo ""
         echo "The uninstall process is cancelled"
         exit 1
     fi
@@ -1065,30 +1060,21 @@ if [ "$ACTION" = "--uninstall" ]; then
     [ -d /tmp/run/acmt ] && rm -r /tmp/run/acmt
     [ -f "$LOG_FILE" ] && rm -rf "$LOG_FILE"
     
-    echo ""
     echo -e "\\n\\e[36mProcessing Uninstall Access Management\\e[0m\\n"
     
-    if run_progress "sleep 3 && [ -f /etc/config/acmt ]" "Checking acmt configuration"; then
-        run_progress "sleep 3 && [ -f /etc/config/acmt ] && rm -rf /etc/config/acmt" "Cleaning up acmt configuration"
-    fi
-    
     if run_progress "sleep 3 && [ -f /etc/config/uhttpd ]" "Checking uhttpd configuration"; then
-        run_progress "sleep 3 && [ -f /etc/config/uhttpd ] && rm -rf /etc/config/uhttpd" "Cleaning up uhttpd configuration"
+        run_progress "sleep 3 && [ -f /etc/config/uhttpd ] && rm -rf /etc/config/uhttpd 2>/dev/null" "Cleaning up uhttpd configuration"
     fi
     
     if run_progress "sleep 3 && [ -f /usr/bin/acmt-ctrl ]" "Checking acmt-ctrl script"; then
-        run_progress "sleep 3 && [ -f /usr/bin/acmt-ctrl ] && rm -rf /usr/bin/acmt-ctrl" "Cleaning up acmt-ctrl script"
-    fi
-    
-    if run_progress "sleep 3 && [ -f /usr/bin/acmt ]" "Checking acmt script"; then
-        run_progress "sleep 3 && [ -f /usr/bin/acmt ] && rm -rf /usr/bin/acmt" "Cleaning up acmt script"
+        run_progress "sleep 3 && [ -f /usr/bin/acmt-ctrl ] && rm -rf /usr/bin/acmt-ctrl 2>/dev/null" "Cleaning up acmt-ctrl script"
     fi
     
     if run_progress "sleep 3 && [ -d /www/users ]" "Checking additional resources"; then
-        run_progress "sleep 3 && [ -d /www/users ] && rm -r /www/users" "Cleaning up additional resources"
+        run_progress "sleep 3 && [ -d /www/users ] && rm -r /www/users 2>/dev/null" "Cleaning up additional resources"
     fi
     
-    run_progress "sleep 3 && opkg status $LUCI_APP | grep -Eq '^Status: install (user|ok) installed' && opkg remove $LUCI_APP >/dev/null" "Deleting the LuCi App"
+    run_progress "sleep 3 && opkg status $LUCI_APP | grep -Eq '^Status: install (user|ok) installed' && opkg remove $LUCI_APP >/dev/null 2>&1" "Deleting the LuCi App"
     
     run_progress "sleep 3" "Generate uhttpd configuration default" "generate_uhttpd_config_default"
     run_progress "sleep 1 && service uhttpd restart" "Restarting uHTTPd"
