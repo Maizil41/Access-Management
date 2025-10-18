@@ -75,6 +75,7 @@ if run_progress "sleep 1" "Check if a previous version of Access-Management is i
     fi
 fi
 
+run_progress "sleep 1 && rm -rf /etc/config/uhttpd && mv /root/acmt-tmp/uhttpd /etc/config/uhttpd" "uHTTPd configuration transfer"
 run_progress "sleep 1 && mkdir -p /www/users/cgi-bin" "create cgi-bin directory"
 run_progress "sleep 1 && [ -f /www/cgi-bin/cekip ] && ln -s /www/cgi-bin/cekip /www/users/cgi-bin/cekip" "cekip symlinks"
 run_progress "sleep 1 && [ -f /www/cgi-bin/ping ] && ln -s /www/cgi-bin/ping /www/users/cgi-bin/ping" "ping symlinks"
