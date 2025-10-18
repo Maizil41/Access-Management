@@ -9,40 +9,40 @@
 </div>
 <hr/>
 
-> [!WARNING]
->
-> - This tool for openwrt firmware donation Mutiara-Wrt.
-> - Before installing, please have a LAN interface in the LuCi interface menu so that the application can work properly.
+> ## NOTES.md
+> 
+> Aplikasi ini ditujukan untuk firmware donasi Mutiara-Wrt.
+> Sebelum melakukan instalasi, harap memiliki antarmuka LAN di menu antarmuka LuCi agar aplikasi dapat bekerja dengan baik.
+> jika ingin menginstall dan ingin menghapus aplikasi, jangan menggunakan `opkg remove` , tapi lihat menu di cli dengan perintah `acmt --help` (agar konfigurasi uHTTPd bawaan OpenWrt bisa dipulihkan).
 
 ### Mutiara-Wrt ?
-- 👉 <a href="https://github.com/Mutiara-Wrt" target="_blank">Mutiara-Wrt</a>
+- [x] 👉 <a href="https://github.com/Mutiara-Wrt" target="_blank">Mutiara-Wrt</a>
 
-Compatible
----
-- Mutiara-Wrt V1-6 donation firmware only.
-- CoovaChilli & rp-pppoe-server only.
-- firewall4 (nftables) only.
-- IPv4 only.
+# Kompatibel
 
-Features
----
-> - Block Hotspot & PPPoE Users from accessing sensitive ports of RadMonv2 Gateway router.
-  - Hotspot Users Blocker (CoovaChilli).
-  - PPPoE Users Blocker (rp-pppoe-server).
-  - Blacklist ports Automatically list active ports.
-  - APP Loop to control the CTRL process and for MAC Whitelist updates in seconds.
-  - CTRL Loop to control the APP process in seconds.
-  - Whitelist IPs are registered from active sessions.
-  - The MAC Whitelist is registered from the active session.
-  - Database configuration for Application
+- [x] Hanya untuk firmware donasi Mutiara-Wrt V1-6.
+- [x] Hanya mendukung CoovaChilli & rp-pppoe-server.
+- [x] Bekerja pada Firewall4 (nftables).
+- [x] Hanya bekerja dengan IPv4.
 
-> - uHTTPd web server settings.
-  - Manage all uHTTPd web server configurations.
+# Fitur
 
-> - added PPPoE Home pages with coffee hotspot theme.
+- [x] Blokir Pengguna Hotspot & PPPoE dari mengakses port sensitif router RadMonv2 Gateway.
+  - [x] Pemblokir Pengguna Hotspot (CoovaChilli).
+  - [x] Pemblokir Pengguna PPPoE (rp-pppoe-server).
+  - [x] Daftar hitam port Secara otomatis mencantumkan port yang aktif.
+  - [x] APP Loop untuk mengendalikan proses CTRL dan untuk pembaruan Daftar Putih MAC dalam hitungan detik.
+  - [x] CTRL Loop untuk mengendalikan proses APP dalam hitungan detik.
+  - [x] Daftar Putih IP didaftarkan dari sesi aktif secara otomatis.
+  - [x] Daftar Putih MAC didaftarkan dari sesi aktif secara otomatis.
+  - [x] Konfigurasi database untuk Aplikasi
+- [x] Pengaturan server web uHTTPd.
+  - [x] Kelola semua konfigurasi server web uHTTPd.
 
-Contributors
----
+- [x] Menambahkan halaman Beranda PPPoE dengan tema hotspot kopi.
+
+# Kontributor
+
 <ul>
   <li>Github : <a href="https://github.com/TaufikNRA" target="_blank">TaufikNRA</a></li>
   <li>Telegram : <a href="https://t.me/Taufik_N_A" target="_blank">TAUFIK_N_A</a></li>
@@ -52,8 +52,8 @@ Contributors
   <li>Telegram : <a href="https://t.me/Maizil41" target="_blank">Maizil41</a></li>
 </ul>
 
-Qris for donation
----
+# Qris untuk donasi
+
   <p>
   <img src="img/qris.png" alt="qris">
  </p>
