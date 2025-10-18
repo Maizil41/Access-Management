@@ -12,6 +12,7 @@
 > [!WARNING]
 >
 > - This tool for openwrt firmware donation Mutiara-Wrt.
+> - Before installing, please have a LAN interface in the LuCi interface menu so that the application can work properly.
 
 ### Mutiara-Wrt ?
 - 👉 <a href="https://github.com/Mutiara-Wrt" target="_blank">Mutiara-Wrt</a>
