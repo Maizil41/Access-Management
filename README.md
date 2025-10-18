@@ -25,20 +25,20 @@ Compatible
 
 Features
 ---
-> - Block Hotspot & PPPoE Users from accessing sensitive ports of RadMonv2 Gateway router.
-- Hotspot Users Blocker.
-- PPPoE Users Blocker.
-- Blacklist ports Automatically list active ports.
-- APP Loop to control the CTRL process and for MAC Whitelist updates in seconds.
-- CTRL Loop to control the APP process in seconds.
-- Whitelist IPs are registered from active sessions.
-- The MAC Whitelist is registered from the active session.
-- Database configuration for Application
+- Block Hotspot & PPPoE Users from accessing sensitive ports of RadMonv2 Gateway router.
+-- Hotspot Users Blocker.
+-- PPPoE Users Blocker.
+-- Blacklist ports Automatically list active ports.
+-- APP Loop to control the CTRL process and for MAC Whitelist updates in seconds.
+-- CTRL Loop to control the APP process in seconds.
+-- Whitelist IPs are registered from active sessions.
+-- The MAC Whitelist is registered from the active session.
+-- Database configuration for Application
 
-> - uHTTPd web server settings.
-- Manage all uHTTPd web server configurations.
+- uHTTPd web server settings.
+-- Manage all uHTTPd web server configurations.
 
-> - added PPPoE Home pages with coffee hotspot theme.
+- added PPPoE Home pages with coffee hotspot theme.
 
 Contributors
 ---
