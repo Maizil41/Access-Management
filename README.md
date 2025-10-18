@@ -37,9 +37,11 @@
   - [x] Daftar Putih IP didaftarkan dari sesi aktif secara otomatis.
   - [x] Daftar Putih MAC didaftarkan dari sesi aktif secara otomatis.
   - [x] Konfigurasi database untuk Aplikasi
+
 - [x] Pengaturan server web uHTTPd.
   - [x] Kelola semua konfigurasi server web uHTTPd.
 
+- [x] Otomatisasi pengalihan ke halaman tujuan dengan port utama.
 - [x] Menambahkan halaman Beranda PPPoE dengan tema hotspot kopi.
 
 # Kontributor
