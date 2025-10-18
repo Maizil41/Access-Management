@@ -13,7 +13,7 @@
 >
 > - Aplikasi ini ditujukan untuk firmware donasi Mutiara-Wrt.
 > - Sebelum melakukan instalasi, harap memiliki antarmuka LAN di menu antarmuka LuCi agar aplikasi dapat bekerja dengan baik.
-> - jika sudah menginstall dan ingin menghapus aplikasi, jangan menggunakan `opkg remove` , tetapi lihat menu di cli dengan perintah `acmt --help` (agar konfigurasi uHTTPd bawaan OpenWrt bisa dipulihkan).
+> - jika sudah menginstall dan ingin menghapus aplikasi, jangan menggunakan `opkg remove` , tetapi lihat menu di CLI dengan perintah `acmt --help` (tujuanya agar konfigurasi uHTTPd bawaan OpenWrt bisa dipulihkan).
 
 # Mutiara-Wrt ?
 
